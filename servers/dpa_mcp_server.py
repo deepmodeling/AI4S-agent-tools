@@ -114,6 +114,11 @@ class ElasticResult(TypedDict):
     shear_modulus: float
     youngs_modulus: float
 
+class NEBResult(TypedDict):
+    """Result of NEB calculation"""
+    neb_energy: float
+    neb_traj: Path
+
 
 def _prim2conven(ase_atoms: Atoms) -> Atoms:
     """
@@ -811,7 +816,7 @@ def run_neb(
     n_images: int = 5,
     max_force: float = 0.05,
     max_steps: int = 500
-) -> Dict[str, Path]:
+) -> NEBResult:
     """
     Run Nudged Elastic Band (NEB) calculation to find minimum energy path between two fully relaxed structures.
 
