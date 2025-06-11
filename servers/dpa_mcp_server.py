@@ -58,6 +58,7 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 from pymatgen.analysis.elasticity import DeformedStructureSet, ElasticTensor, Strain
 from pymatgen.analysis.elasticity.elastic import get_strain_state_dict
+from ase.mep import NEB, NEBTools
 
 ### CONSTANTS
 DEFAULT_HEAD = "MP_traj_v024_alldata_mixu"
@@ -721,7 +722,6 @@ def _get_elastic_tensor_from_strains(
     elastic_tensor = ElasticTensor.from_voigt(c_ij)
     return elastic_tensor.zeroed(tol)
 
-
 @mcp.tool()
 def calculate_elastic_constants(
     cif_file: Path,
@@ -803,6 +803,69 @@ def calculate_elastic_constants(
         }
 
 
+@mcp.tool()
+def run_neb(
+    initial_structure: Path,
+    final_structure: Path,
+    model_path: Path,
+    n_images: int = 5,
+    max_force: float = 0.05,
+    max_steps: int = 500
+) -> Dict[str, Path]:
+    """
+    Run Nudged Elastic Band (NEB) calculation to find minimum energy path between two fully relaxed structures.
+
+    Args:
+        initial_structure (Path): Path to the initial structure file.
+        final_structure (Path): Path to the final structure file.
+        model_path (Path): Path to the Deep Potential model file.
+        n_images (int): Number of images inserted between the initial and final structure in the NEB chain. Default is 5.
+        max_force (float): Maximum force tolerance for convergence in eV/Å. Default is 0.05 eV/Å.
+        max_steps (int): Maximum number of optimization steps. Default is 500.
+
+    Returns:
+        dict: A dictionary containing:
+            - energy_barrier (float): Energy barrier in eV.
+            - neb_traj (Path): Path to the NEB band as a PDF file.
+    """
+    try:
+        model_file = str(model_path)
+        calc = DP(model=model_file, head=DEFAULT_HEAD)
+
+        # Read structures
+        initial_atoms = read(str(initial_structure))
+        final_atoms = read(str(final_structure))
+
+        images = [initial_atoms]
+        images += [initial_atoms.copy() for i in range(n_images)]
+        images += [final_atoms]
+        for image in images:
+            image.calc = calc
+
+        # Setup NEB
+        neb = NEB(images, climb=False, allow_shared_calculator=True)
+        neb.interpolate(method='idpp')
+
+        opt = BFGS(neb)
+        conv = opt.run(fmax=0.45, steps=200)
+        # Turn on climbing image if initial optimization converged
+        if conv:
+            neb.climb = True
+            conv = opt.run(fmax=max_force, steps=max_steps)
+        neb_tool = NEBTools(neb.images)
+        energy_barrier = neb_tool.get_barrier()
+        neb_tool.plot_bands("neb_band.pdf")
+        return {
+            "energy_barrier": energy_barrier,
+            "neb_traj": Path("neb_band.pdf")
+        }
+
+    except Exception as e:
+        logging.error(f"NEB calculation failed: {str(e)}", exc_info=True)
+        return {
+            "neb_energy": None,
+            "neb_traj": Path("")
+        }
 
 if __name__ == "__main__":
     logging.info("Starting Unified MCP Server with all tools...")
