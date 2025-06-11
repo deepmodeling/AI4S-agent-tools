@@ -1,11 +1,44 @@
+"""
+This elastic calculator has been modified from MatCalc
+https://github.com/materialsvirtuallab/matcalc/blob/main/src/matcalc/_elasticity.py
+https://github.com/materialsvirtuallab/matcalc/blob/main/LICENSE
+BSD 3-Clause License
+Copyright (c) 2023, Materials Virtual Lab
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+"""
+The test data is obtained from the following paper:
+de Jong, M., Chen, W., Angsten, T. et al. Charting the complete elastic properties of inorganic crystalline compounds.
+Sci Data 2, 150009 (2015). https://doi.org/10.1038/sdata.2015.9
+"""
+
 import logging
 import os
 import glob
 from pathlib import Path
-from typing import Literal, Optional, Tuple, TypedDict, List, Dict
+from typing import Optional, TypedDict, List, Dict
 
 import numpy as np
-import seekpath
 from ase import Atoms, io, units
 from ase.build import bulk, surface
 from ase.io import read, write
@@ -20,13 +53,16 @@ from dp.agent.server import CalculationMCPServer
 from phonopy import Phonopy
 from phonopy.harmonic.dynmat_to_fc import get_commensurate_points
 from phonopy.structure.atoms import PhonopyAtoms
-from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
+from pymatgen.analysis.elasticity import DeformedStructureSet, ElasticTensor, Strain
+from pymatgen.analysis.elasticity.elastic import get_strain_state_dict
 
 ### CONSTANTS
 DEFAULT_HEAD = "MP_traj_v024_alldata_mixu"
 THz_TO_K = 47.9924  # 1 THz ≈ 47.9924 K
+EV_A3_TO_GPA = 160.21766208 # eV/Å³ to GPa
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,6 +106,12 @@ class MDResult(TypedDict):
     final_structure: Path
     trajectory_files: List[Path]
     log_file: Path
+
+class ElasticResult(TypedDict):
+    """Result of elastic constant calculation"""
+    bulk_modulus: float
+    shear_modulus: float
+    youngs_modulus: float
 
 
 def _prim2conven(ase_atoms: Atoms) -> Atoms:
@@ -644,6 +686,121 @@ def run_molecular_dynamics(
         "trajectory_files": trajectory_files,
         "log_file": log_file
     }
+
+
+def _get_elastic_tensor_from_strains(
+    strains: np.typing.ArrayLike,
+    stresses: np.typing.ArrayLike,
+    eq_stress: np.typing.ArrayLike = None,
+    tol: float = 1e-7,
+) -> ElasticTensor:
+    """
+    Compute the elastic tensor from given strain and stress data using least-squares
+    fitting.
+    This function calculates the elastic constants from strain-stress relations,
+    using a least-squares fitting procedure for each independent component of stress
+    and strain tensor pairs. An optional equivalent stress array can be supplied.
+    Residuals from the fitting process are accumulated and returned alongside the
+    elastic tensor. The elastic tensor is zeroed according to the given tolerance.
+    """
+
+    strain_states = [tuple(ss) for ss in np.eye(6)]
+    ss_dict = get_strain_state_dict(
+        strains,
+        stresses,
+        eq_stress=eq_stress,
+        add_eq=True if eq_stress is not None else False,
+    )
+    c_ij = np.zeros((6, 6))
+    for ii in range(6):
+        strain = ss_dict[strain_states[ii]]["strains"]
+        stress = ss_dict[strain_states[ii]]["stresses"]
+        for jj in range(6):
+            fit = np.polyfit(strain[:, ii], stress[:, jj], 1, full=True)
+            c_ij[ii, jj] = fit[0][0]
+    elastic_tensor = ElasticTensor.from_voigt(c_ij)
+    return elastic_tensor.zeroed(tol)
+
+
+@mcp.tool()
+def calculate_elastic_constants(
+    cif_file: Path,
+    model_path: Path,
+) -> ElasticResult:
+    """
+    Calculate elastic constants for a crystal structure using a Deep Potential model.
+
+    Args:
+        cif_file (Path): Path to the input CIF structure file.
+        model_path (Path): Path to the Deep Potential model file.
+            Default is "bohrium://13756/27666/store/upload/d7af9d6c-ae70-40b5-a85b-1a62269946b8/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+        
+
+    Returns:
+        dict: A dictionary containing:
+            - bulk_modulus (float): Bulk modulus in GPa.
+            - shear_modulus (float): Shear modulus in GPa.
+            - youngs_modulus (float): Young's modulus in Pa.
+    """
+    try:
+        # Read input files
+        atoms = read(str(cif_file))
+        model_file = str(model_path)
+        calc = DP(model=model_file, head=DEFAULT_HEAD)
+
+        relaxed_file_path = optimize_crystal_structure(
+            input_structure=cif_file,
+            model_path=model_path,
+            force_tolerance=1e-3,  # Default force tolerance
+            max_iterations=500  # Default max iterations
+        ).optimized_structure
+
+        relaxed_atoms = read(str(relaxed_file_path))
+        structure = AseAtomsAdaptor.get_structure(relaxed_atoms)
+
+        # Create deformed structures
+        deformed_structure_set = DeformedStructureSet(
+            structure,
+            np.linspace(-0.01, 0.01, 4),
+            np.linspace(-0.06, 0.06, 4),
+        )
+
+        
+        stresses = []
+        for deformed_structure in deformed_structure_set:
+            atoms = deformed_structure.to_ase_atoms()
+            atoms.calc = calc
+            stresses.append(atoms.get_stress(voigt=False))
+
+        strains = [
+            Strain.from_deformation(deformation)
+            for deformation in deformed_structure_set.deformations
+        ]
+
+        eq_stress = relaxed_atoms.get_stress(voigt=False)
+        elastic_tensor = _get_elastic_tensor_from_strains(
+            strains=strains,
+            stresses=stresses,
+            eq_stress=eq_stress,
+        )
+        
+        # Calculate elastic constants
+        bulk_modulus = elastic_tensor.k_vrh
+        shear_modulus = elastic_tensor.g_vrh
+        youngs_modulus = elastic_tensor.y_mod
+        
+        return {
+            "bulk_modulus": bulk_modulus * EV_A3_TO_GPA,
+            "shear_modulus": shear_modulus * EV_A3_TO_GPA,
+            "youngs_modulus": youngs_modulus
+        }
+    except Exception as e:
+        logging.error(f"Elastic calculation failed: {str(e)}", exc_info=True)
+        return {
+            "bulk_modulus": None,
+            "shear_modulus": None,
+            "youngs_modulus": None
+        }
 
 
 
