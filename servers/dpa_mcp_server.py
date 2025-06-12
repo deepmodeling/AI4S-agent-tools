@@ -731,45 +731,42 @@ def _get_elastic_tensor_from_strains(
 def calculate_elastic_constants(
     cif_file: Path,
     model_path: Path,
+    norm_strains: np.typing.ArrayLike = np.linspace(-0.01, 0.01, 4),
+    norm_shear_strains: np.typing.ArrayLike = np.linspace(-0.06, 0.06, 4),
 ) -> ElasticResult:
     """
-    Calculate elastic constants for a crystal structure using a Deep Potential model.
+    Calculate elastic constants for a fully relaxed crystal structure using a Deep Potential model.
 
     Args:
-        cif_file (Path): Path to the input CIF structure file.
+        cif_file (Path): Path to the input CIF file of the fully relaxed structure.
         model_path (Path): Path to the Deep Potential model file.
             Default is "bohrium://13756/27666/store/upload/d7af9d6c-ae70-40b5-a85b-1a62269946b8/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+        norm_strains (ArrayLike): strain values to apply to each normal mode.
+            Default is np.linspace(-0.01, 0.01, 4).
+        norm_shear_strains (ArrayLike): strain values to apply to each shear mode.
+            Default is np.linspace(-0.06, 0.06, 4).
         
 
     Returns:
         dict: A dictionary containing:
             - bulk_modulus (float): Bulk modulus in GPa.
             - shear_modulus (float): Shear modulus in GPa.
-            - youngs_modulus (float): Young's modulus in Pa.
+            - youngs_modulus (float): Young's modulus in GPa.
     """
     try:
         # Read input files
-        atoms = read(str(cif_file))
+        relaxed_atoms = read(str(cif_file))
         model_file = str(model_path)
         calc = DP(model=model_file, head=DEFAULT_HEAD)
-
-        relaxed_file_path = optimize_crystal_structure(
-            input_structure=cif_file,
-            model_path=model_path,
-            force_tolerance=1e-3,  # Default force tolerance
-            max_iterations=500  # Default max iterations
-        ).optimized_structure
-
-        relaxed_atoms = read(str(relaxed_file_path))
+        
         structure = AseAtomsAdaptor.get_structure(relaxed_atoms)
 
         # Create deformed structures
         deformed_structure_set = DeformedStructureSet(
             structure,
-            np.linspace(-0.01, 0.01, 4),
-            np.linspace(-0.06, 0.06, 4),
+            norm_strains,
+            norm_shear_strains,
         )
-
         
         stresses = []
         for deformed_structure in deformed_structure_set:
@@ -782,6 +779,7 @@ def calculate_elastic_constants(
             for deformation in deformed_structure_set.deformations
         ]
 
+        relaxed_atoms.calc = calc
         eq_stress = relaxed_atoms.get_stress(voigt=False)
         elastic_tensor = _get_elastic_tensor_from_strains(
             strains=strains,
@@ -790,13 +788,13 @@ def calculate_elastic_constants(
         )
         
         # Calculate elastic constants
-        bulk_modulus = elastic_tensor.k_vrh
-        shear_modulus = elastic_tensor.g_vrh
-        youngs_modulus = elastic_tensor.y_mod
+        bulk_modulus = elastic_tensor.k_vrh * EV_A3_TO_GPA
+        shear_modulus = elastic_tensor.g_vrh * EV_A3_TO_GPA
+        youngs_modulus = 9 * bulk_modulus * shear_modulus / (3 * bulk_modulus + shear_modulus)
         
         return {
-            "bulk_modulus": bulk_modulus * EV_A3_TO_GPA,
-            "shear_modulus": shear_modulus * EV_A3_TO_GPA,
+            "bulk_modulus": bulk_modulus,
+            "shear_modulus": shear_modulus,
             "youngs_modulus": youngs_modulus
         }
     except Exception as e:
