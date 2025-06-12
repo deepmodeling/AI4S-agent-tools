@@ -26,12 +26,6 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-"""
-The test data is obtained from the following paper:
-de Jong, M., Chen, W., Angsten, T. et al. Charting the complete elastic properties of inorganic crystalline compounds.
-Sci Data 2, 150009 (2015). https://doi.org/10.1038/sdata.2015.9
-"""
-
 import logging
 import os
 import glob
