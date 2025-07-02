@@ -49,7 +49,6 @@ class OptimizationResult(TypedDict):
     final_energy: float
     message: str
 
-
 class PhononResult(TypedDict):
     """Result structure for phonon calculation"""
     entropy: float
@@ -61,11 +60,9 @@ class PhononResult(TypedDict):
     band_yaml: Path
     band_dat: Path
 
-
 class BuildStructureResult(TypedDict):
     """Result structure for crystal structure building"""
     structure_file: Path
-
 
 class MDResult(TypedDict):
     """Result of MD simulation"""
@@ -101,136 +98,177 @@ def _prim2conven(ase_atoms: Atoms) -> Atoms:
 
 
 @mcp.tool()
-def build_structure(
-    structure_type: str,
-    material1: str,
+def build_bulk_structure_from_scratch(
+    material: str,
     conventional: bool = True,
+    crystal_structure: str = 'fcc',
+    a: Optional[float] = None,
+    b: Optional[float] = None,
+    c: Optional[float] = None,
+    alpha: Optional[float] = None,
+    output_file: str = "structure_bulk.cif"
+) -> BuildStructureResult:
+    """
+    Build a bulk crystal structure using ASE.
+
+    Args:
+        material (str): Element or chemical formula.
+        conventional (bool): If True, convert to conventional standard cell.
+        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
+        a, b, c, alpha: Lattice parameters.
+        output_file (str): Path to save CIF.
+
+    Returns:
+        dict with structure_file (Path)
+    """
+    try:
+        atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
+        if conventional:
+            atoms = _prim2conven(atoms)
+        write(output_file, atoms)
+        logging.info(f"Bulk structure saved to: {output_file}")
+        return {"structure_file": Path(output_file)}
+    except Exception as e:
+        logging.error(f"Bulk structure building failed: {str(e)}", exc_info=True)
+        return {
+            "structure_file": Path(""), 
+            "message": f"Bulk structure building failed: {str(e)}"
+        }
+
+@mcp.tool()
+def build_surface_structure_from_scratch(
+    material: str,
+    crystal_structure: str = 'fcc',
+    a: Optional[float] = None,
+    b: Optional[float] = None,
+    c: Optional[float] = None,
+    alpha: Optional[float] = None,
+    miller_index: List[int] = (1, 0, 0),
+    layers: int = 4,
+    vacuum: float = 10.0,
+    output_file: str = "structure_surface.cif"
+) -> BuildStructureResult:
+    """
+    Build a surface slab structure using ASE.
+
+    Args:
+        material (str): Element or chemical formula.
+        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
+        a, b, c, alpha: Lattice parameters.
+        miller_index (list of 3 ints): Miller index.
+        layers (int): Number of layers in slab.
+        vacuum (float): Vacuum spacing in Å.
+        output_file (str): Path to save CIF.
+
+    Returns:
+        dict with structure_file (Path)
+    """
+    try:
+        bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
+        slab = surface(bulk_atoms, miller_index, layers, vacuum=vacuum)
+        write(output_file, slab)
+        logging.info(f"Surface structure saved to: {output_file}")
+        return {"structure_file": Path(output_file)}
+    except Exception as e:
+        logging.error(f"Surface structure building failed: {str(e)}", exc_info=True)
+        return {
+            "structure_file": Path(""), 
+            "message": f"Surface structure building failed: {str(e)}"
+        }
+
+
+@mcp.tool()
+def build_surface_interface_from_scratch(
+    material1: str,
+    material2: str,
     crystal_structure1: str = 'fcc',
+    crystal_structure2: str = 'fcc',
     a1: Optional[float] = None,
     b1: Optional[float] = None,
     c1: Optional[float] = None,
     alpha1: Optional[float] = None,
-    output_file: str = "structure.cif",
-    miller_index1: List[int] = (1, 0, 0),
-    layers1: int = 4,
-    vacuum1: float = 10.0,
-    material2: Optional[str] = None,
-    crystal_structure2: str = 'fcc',
     a2: Optional[float] = None,
     b2: Optional[float] = None,
     c2: Optional[float] = None,
     alpha2: Optional[float] = None,
+    miller_index1: List[int] = (1, 0, 0),
     miller_index2: List[int] = (1, 0, 0),
+    layers1: int = 4,
     layers2: int = 3,
+    vacuum1: float = 10.0,
     vacuum2: float = 10.0,
     stack_axis: int = 2,
     interface_distance: float = 2.5,
+    conventional: bool = True,
     max_strain: float = 0.05,
+    output_file: str = "structure_interface.cif"
 ) -> BuildStructureResult:
     """
-    Build a crystal structure using ASE. Supports bulk crystals, surfaces, and interfaces.
-    
+    Build an interface structure between two materials.
+
     Args:
-        structure_type (str): Type of structure to build. Allowed values: 'bulk', 'surface', 'interface'
-        material1 (str): Element or chemical formula of the first material.
-        conventional (bool): If True, convert primitive cell to conventional standard cell. Default True.
-        crystal_structure1 (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a1 (float): Lattice constant a for material1. Default is ASE's default.
-        b1 (float): Lattice constant b for material1. Only needed for non-cubic structures.
-        c1 (float): Lattice constant c for material1. Only needed for non-cubic structures.
-        alpha1 (float): Alpha angle in degrees. Only needed for non-cubic structures.   
-        output_file (str): File path to save the generated structure (e.g., .cif). Default 'structure.cif'.
-        miller_index1 (list of 3 integers): Miller index for surface orientation. Must be a list of exactly 3 integers. Default (1, 0, 0).
-        layers1 (int): Number of atomic layers in slab. Default 4.
-        vacuum1 (float): Vacuum spacing in Ångströms. Default 10.0.
-        material2 (str): Second material (required for interface). Default None.
-        crystal_structure2 (str): Crystal structure type for material2. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a2 (float): Lattice constant a for material2. Default is ASE's default.
-        b2 (float): Lattice constant b for material2. Only needed for non-cubic structures.
-        c2 (float): Lattice constant c for material2. Only needed for non-cubic structures.
-        alpha2 (float): Alpha angle in degrees. Only needed for non-cubic structures.
-        miller_index2 (list): Miller index for material2 surfaceorientation. Must be a list of exactly 3 integers. Default (1, 0, 0).
-        layers2 (int): Number of atomic layers in material2 slab. Default 3.
-        vacuum2 (float): Vacuum spacing for material2. Default 10.0.
-        stack_axis (int): Axis (0=x, 1=y, 2=z) for stacking. Default 2 (z-axis).
-        interface_distance (float): Distance between surfaces in Å. Default 2.5.
-        max_strain (float): Maximum allowed relative lattice mismatch. Default 0.05.
-    
+        material1 (str): Chemical formulas.
+        material2 (str): Chemical formulas.
+        crystal_structure1/2 (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
+        a1, b1, c1, alpha1; a2, b2, c2, alpha2: Lattice constants.
+        miller_index1/2: Miller indices for surfaces.
+        layers1/2: Number of layers.
+        vacuum1/2: Vacuum spacing.
+        stack_axis: Stacking direction (0=x,1=y,2=z).
+        interface_distance: Distance between surfaces.
+        conventional: Whether to convert to conventional cells.
+        max_strain: Allowed lattice mismatch.
+        output_file: Output CIF path.
+
     Returns:
-        dict: A dictionary containing:
-            - structure_file (Path): Path to the generated structure file
+        dict with structure_file (Path)
     """
     try:
-        if structure_type == 'bulk':
-            atoms = bulk(material1, crystal_structure1, a=a1, b=b1, c=c1, alpha=alpha1)
-            if conventional:
-                atoms = _prim2conven(atoms)
+        bulk1 = bulk(material1, crystal_structure1, a=a1, b=b1, c=c1, alpha=alpha1)
+        bulk2 = bulk(material2, crystal_structure2, a=a2, b=b2, c=c2, alpha=alpha2)
+        if conventional:
+            bulk1 = _prim2conven(bulk1)
+            bulk2 = _prim2conven(bulk2)
 
-        elif structure_type == 'surface':        
-            bulk1 = bulk(material1, crystal_structure1, a=a1, b=b1, c=c1, alpha=alpha1)
-            atoms = surface(bulk1, miller_index1, layers1, vacuum=vacuum1)
+        surf1 = surface(bulk1, miller_index1, layers1)
+        surf2 = surface(bulk2, miller_index2, layers2)
 
-        elif structure_type == 'interface':
-            if material2 is None:
-                raise ValueError("material2 must be specified for interface structure.")
-            
-            # Build surfaces
-            bulk1 = bulk(material1, crystal_structure1, 
-                        a=a1, b=b1, c=c1, alpha=alpha1)
-            bulk2 = bulk(material2, crystal_structure2,
-                        a=a2, b=b2, c=c2, alpha=alpha2)
-            if conventional:
-                bulk1 = _prim2conven(bulk1)
-                bulk2 = _prim2conven(bulk2)
-            surf1 = surface(bulk1, miller_index1, layers1)
-            surf2 = surface(bulk2, miller_index2, layers2)
-            # Align surfaces along the stacking axis
-            axes = [0, 1, 2]
-            axes.remove(stack_axis)
-            axis1, axis2 = axes
-            # Get in-plane lattice vectors
-            cell1 = surf1.cell
-            cell2 = surf2.cell
-            # Compute lengths of in-plane lattice vectors
-            len1_a = np.linalg.norm(cell1[axis1])
-            len1_b = np.linalg.norm(cell1[axis2])
-            len2_a = np.linalg.norm(cell2[axis1])
-            len2_b = np.linalg.norm(cell2[axis2])
-            # Compute strain to match lattice constants
-            strain_a = abs(len1_a - len2_a) / ((len1_a + len2_a) / 2)
-            strain_b = abs(len1_b - len2_b) / ((len1_b + len2_b) / 2)
-            if strain_a > max_strain or strain_b > max_strain:
-                raise ValueError(f"Lattice mismatch too large: strain_a={strain_a:.3f}, strain_b={strain_b:.3f}")
-            # Adjust surf2 to match surf1's in-plane lattice constants
-            scale_a = len1_a / len2_a
-            scale_b = len1_b / len2_b
-            # Scale surf2 cell
-            new_cell2 = cell2.copy()
-            new_cell2[axis1] *= scale_a
-            new_cell2[axis2] *= scale_b
-            surf2.set_cell(new_cell2, scale_atoms=True)
-            # Shift surf2 along stacking axis
-            max1 = max(surf1.positions[:, stack_axis])
-            min2 = min(surf2.positions[:, stack_axis])
-            shift = max1 - min2 + interface_distance
-            surf2.positions[:, stack_axis] += shift
-            # Combine surfaces
-            atoms = surf1 + surf2
-            # Add vacuum
-            atoms.center(vacuum=vacuum1 + vacuum2, axis=stack_axis)
-        else:
-            raise ValueError(f"Unsupported structure_type: {structure_type}")
-        # Save the structure
+        axes = [0, 1, 2]
+        axes.remove(stack_axis)
+        axis1, axis2 = axes
+
+        len1_a = np.linalg.norm(surf1.cell[axis1])
+        len1_b = np.linalg.norm(surf1.cell[axis2])
+        len2_a = np.linalg.norm(surf2.cell[axis1])
+        len2_b = np.linalg.norm(surf2.cell[axis2])
+        strain_a = abs(len1_a - len2_a) / ((len1_a + len2_a) / 2)
+        strain_b = abs(len1_b - len2_b) / ((len1_b + len2_b) / 2)
+        if strain_a > max_strain or strain_b > max_strain:
+            raise ValueError(f"Lattice mismatch too large: strain_a={strain_a:.3f}, strain_b={strain_b:.3f}")
+
+        scale_a = len1_a / len2_a
+        scale_b = len1_b / len2_b
+        new_cell2 = surf2.cell.copy()
+        new_cell2[axis1] *= scale_a
+        new_cell2[axis2] *= scale_b
+        surf2.set_cell(new_cell2, scale_atoms=True)
+
+        max1 = max(surf1.positions[:, stack_axis])
+        min2 = min(surf2.positions[:, stack_axis])
+        shift = max1 - min2 + interface_distance
+        surf2.positions[:, stack_axis] += shift
+
+        atoms = surf1 + surf2
+        atoms.center(vacuum=vacuum1 + vacuum2, axis=stack_axis)
+
         write(output_file, atoms)
-        logging.info(f"Structure saved to: {output_file}")
-        return {
-            "structure_file": Path(output_file)
-        }
+        logging.info(f"Interface structure saved to: {output_file}")
+        return {"structure_file": Path(output_file)}
     except Exception as e:
-        logging.error(f"Structure building failed: {str(e)}", exc_info=True)
+        logging.error(f"Interface structure building failed: {str(e)}", exc_info=True)
         return {
-            "structure_file": Path(""),
-            "message": f"Structure building failed: {str(e)}"
+            "structure_file": Path(""), 
+            "message": f"Interface structure building failed: {str(e)}"
         }
 
 
@@ -451,6 +489,7 @@ def calculate_phonon(
             "message": f"Calculation failed: {str(e)}"
         }
 
+
 def _log_progress(atoms, dyn):
     """Log simulation progress"""
     epot = atoms.get_potential_energy()
@@ -550,6 +589,7 @@ def _run_md_stage(atoms, stage, save_interval_steps, traj_file, seed, stage_id):
 
     return atoms
 
+
 def _run_md_pipeline(atoms, stages, save_interval_steps=100, traj_prefix='traj', seed=None):
     """Run multiple MD stages sequentially"""
     for i, stage in enumerate(stages):
@@ -572,6 +612,7 @@ def _run_md_pipeline(atoms, stages, save_interval_steps=100, traj_prefix='traj',
         )
 
     return atoms
+
 
 @mcp.tool()
 def run_molecular_dynamics(
@@ -754,6 +795,7 @@ def _get_elastic_tensor_from_strains(
             c_ij[ii, jj] = fit[0][0]
     elastic_tensor = ElasticTensor.from_voigt(c_ij)
     return elastic_tensor.zeroed(tol)
+
 
 @mcp.tool()
 def calculate_elastic_constants(
