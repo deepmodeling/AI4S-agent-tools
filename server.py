@@ -437,7 +437,7 @@ def optimize_crystal_structure(
     Args:
         input_structure (Path): Path to the input structure file (e.g., CIF, POSCAR).
         model_path (Path): Path to the trained Deep Potential model directory.
-            Default is "local:///model/upload/30d126de-b367-4254-90d1-5e41799e2853/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+            Default is "///mcp_server/models/upload/13399498-c591-4624-98e0-196287c11705/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
         head (str, optional): Model head corresponding to the application domain. Options are:
             - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
             and molecular fragments in aqueous or biological environments.
@@ -521,7 +521,7 @@ def calculate_phonon(
     Args:
         cif_file (Path): Path to the input CIF structure file.
         model_path (Path): Path to the Deep Potential model file.
-            Default is "local:///model/upload/30d126de-b367-4254-90d1-5e41799e2853/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+            Default is "///mcp_server/models/upload/13399498-c591-4624-98e0-196287c11705/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
         head (str, optional): Model head corresponding to the application domain. Options are:
             - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
             and molecular fragments in aqueous or biological environments.
@@ -962,7 +962,7 @@ def calculate_elastic_constants(
     Args:
         cif_file (Path): Path to the input CIF file of the fully relaxed structure.
         model_path (Path): Path to the Deep Potential model file.
-            Default is "local:///model/upload/30d126de-b367-4254-90d1-5e41799e2853/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+            Default is "///mcp_server/models/upload/13399498-c591-4624-98e0-196287c11705/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
         head (str, optional): Model head corresponding to the application domain. Options are:
             - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
             and molecular fragments in aqueous or biological environments.
