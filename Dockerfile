@@ -10,3 +10,7 @@ WORKDIR /app
 COPY . /app
 
 RUN pip install . --no-cache-dir
+RUN pip install git+https://github.com/dptech-corp/bohr-agent-sdk.git@master
+RUN pip install git+https://github.com/dingzhaohan/dpdispatcher.git@master
+RUN pip install bohrium-sdk
+RUN pip install distro
