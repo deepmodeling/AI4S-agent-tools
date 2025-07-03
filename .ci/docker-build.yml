@@ -1,0 +1,25 @@
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+  REGISTRY: "registry.dp.tech"
+  DOCKER_IMAGE_NAME: $REGISTRY/dptech/dpa-calculator
+  DOCKER_TAG: $CI_COMMIT_SHORT_SHA
+
+docker-build:
+  stage: build
+  image: $REGISTRY/public/docker:latest
+  services:
+    - name: $REGISTRY/public/docker:20.10.16-dind
+      alias: docker
+  before_script:
+    - docker login -u $REGISTRY_USERNAME -p $REGISTRY_PASSWORD $REGISTRY
+  script:
+    - docker pull "$DOCKER_IMAGE_NAME:latest" || true
+    - docker build --cache-from "$DOCKER_IMAGE_NAME:latest" -t "$DOCKER_IMAGE_NAME:$DOCKER_TAG" .
+    - docker push "$DOCKER_IMAGE_NAME:$DOCKER_TAG"
+    - docker tag "$DOCKER_IMAGE_NAME:$DOCKER_TAG" "$DOCKER_IMAGE_NAME:latest"
+    - docker push "$DOCKER_IMAGE_NAME:latest"
+  tags:
+    - shared-cpu
+  after_script:
+    - docker logout $REGISTRY
