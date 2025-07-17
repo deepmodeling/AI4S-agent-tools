@@ -1162,7 +1162,7 @@ def run_neb(
         energy_barrier = neb_tool.get_barrier()
         neb_tool.plot_bands("neb_band.pdf")
         return {
-            "energy_barrier": energy_barrier,
+            "energy_barrier": float(energy_barrier),
             "neb_traj": Path("neb_band.pdf")
         }
 
