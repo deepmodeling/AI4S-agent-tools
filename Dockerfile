@@ -7,12 +7,14 @@ ENV PYTHONPATH=/mcp_server/AI4S-agent-tools:$PYTHONPATH
 RUN mkdir -p /mcp_server/AI4S-agent-tools /root/.dpdispatcher/dp_cloud_server
 WORKDIR /mcp_server/AI4S-agent-tools
 
-COPY setup.py pyproject.toml ./
-RUN pip install . --no-cache-dir
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install git+https://github.com/dptech-corp/bohr-agent-sdk.git@master && \
+COPY . /mcp_server/AI4S-agent-tools
+
+
+RUN pip install . --no-cache-dir && \
+    pip install git+https://github.com/dptech-corp/bohr-agent-sdk.git@master && \
     pip install git+https://github.com/dingzhaohan/dpdispatcher.git@master && \
     pip install bohrium-sdk && \
     pip install distro
-
-COPY . /mcp_server/AI4S-agent-tools
