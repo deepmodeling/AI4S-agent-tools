@@ -704,8 +704,7 @@ def _run_md_stage(atoms, stage, save_interval_steps, traj_file, seed, stage_id):
             atoms,
             timestep=timestep_fs * units.fs,
             temperature_K=temperature_K,
-            tdamp=tau_t_ps * 1000 * units.fs,
-            chain_length=stage.get('chain_length', 3) 
+            tdamp=tau_t_ps * 1000 * units.fs
         )
     elif mode == 'NVT-Berendsen':
         dyn = NVTBerendsen(
