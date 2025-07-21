@@ -451,7 +451,6 @@ def optimize_crystal_structure(
     max_iterations: int = 100, 
     relax_cell: bool = False,
 ) -> OptimizationResult:
-    # TODO: RELAX CELL
     """Optimize crystal structure using a Deep Potential (DP) model.
 
     Args:
@@ -511,7 +510,7 @@ def optimize_crystal_structure(
 
         output_file = f"{base_name}_optimized.cif"
         write(output_file, atoms)
-        final_energy = atoms.get_potential_energy()
+        final_energy = float(atoms.get_potential_energy())
 
         logging.info(
             f"Optimization completed in {optimizer.nsteps} steps. "
