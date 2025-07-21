@@ -268,7 +268,8 @@ def build_surface_adsorbate(
     alpha: Optional[float] = None,
     miller_index: List[int] = (1, 0, 0),
     supercell_matrix: list[int] = [1, 1, 1],
-    adsorbate_position: Optional[List[float]] = None, 
+    shift: Optional[Union[List[float], str]] = None,
+    height: Optional[float] = None,
     layers: int = 4,
     vacuum: float = 10.0,
     output_file: str = "structure_adsorbate.cif"
@@ -286,6 +287,11 @@ def build_surface_adsorbate(
         miller_index (list of 3 ints): Miller index.
         supercell_matrix (list[int], optional): matrix for supercell expansion.
             Defaults to [1, 1, 1], i.e. no supercell.
+        shift (list[float] or str or None): x,y placement within surface cell.
+            - None: use center of cell.
+            - [x, y]: Cartesian coordinates in Å.
+            - 'ontop', 'fcc', etc.: use ASE keyword site.
+        height (float or None): height above surface (Å). None = default 2 Å.
         layers (int): Number of layers in slab.
         vacuum (float): Vacuum spacing in Å.
         output_file (str): Path to save CIF.
@@ -300,25 +306,32 @@ def build_surface_adsorbate(
             bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
         if supercell_matrix != [1, 1, 1]:
             bulk_atoms = _make_supercell(bulk_atoms, supercell_matrix)
-        slab = surface(bulk_atoms, miller_index, layers)
-        slab.center(vacuum=vacuum, axis=2) # z-axis
+        slab = surface(bulk_atoms, miller_index, layers, vacuum=vacuum)
         if adsorbate_path is not None:
             adsorbate_atoms = read(str(adsorbate_path))
         else:
             adsorbate_atoms = molecule(adsorbate)
         
-        # Default adsorbate position: center of surface in x/y, 2 Å above surface
-        if adsorbate_position is None:
-            x = 0.5 * (slab.cell[0][0] + slab.cell[1][0])
-            y = 0.5 * (slab.cell[0][1] + slab.cell[1][1])
-            height = max(slab.positions[:, 2]) + 2.0
-        else:
-            if len(adsorbate_position) != 3:
-                raise ValueError("adsorbate_position must be a list of 3 floats: [x, y, height]")
-            x, y, height = adsorbate_position
 
-        add_adsorbate(slab, adsorbate_atoms, height=height, position=(x, y))
-        slab.center(vacuum=vacuum, axis=2)
+        # Determine adsorbate shift & height
+        zsurf_max = max(slab.positions[:, 2])
+        # default center
+        default_frac = (0.5, 0.5)
+        if shift is None:
+            pos = default_frac
+        elif isinstance(shift, str):
+            pos = shift
+        elif isinstance(shift, (list, tuple)) and len(shift) == 2:
+            # convert Cartesian x,y to fractional
+            cell2d = np.vstack((slab.cell[0][:2], slab.cell[1][:2]))
+            frac_xy = np.linalg.solve(cell2d.T, np.array(shift))
+            pos = (float(frac_xy[0]), float(frac_xy[1]))
+        else:
+            raise ValueError("`shift` must be None, keyword site, or [x, y] coordinates")
+        # determine height
+        height_val = height if height is not None else zsurf_max + 2.0
+
+        add_adsorbate(slab, adsorbate_atoms, height_val, position=pos)
 
         write(output_file, slab)
         logging.info(f"Surface-adsorbate structure saved to: {output_file}")
