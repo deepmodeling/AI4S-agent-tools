@@ -9,7 +9,7 @@ import argparse
 
 import numpy as np
 from ase import Atoms, io, units
-from ase.build import add_adsorbate, add_vacuum, bulk, molecule, surface
+from ase.build import add_adsorbate, add_vacuum, bulk, molecule, surface, stack
 from ase.constraints import ExpCellFilter
 from ase.io import read, write
 from ase.md.andersen import Andersen
@@ -320,63 +320,69 @@ def build_surface_interface(
     material2_path: Optional[Path] = None,
     stack_axis: int = 2,
     interface_distance: float = 2.5,
-    max_strain: float = 0.05,
+    max_strain: float = 0.2,
     output_file: str = "structure_interface.cif"
-) -> BuildStructureResult:
+) -> dict:
     """
-    Build an interface structure between two materials.
+    Build an interface between two structures with strain check.
 
     Args:
-        material1_path/2_path (Path): Path to existing structure file, used for building structures from existing structures.
-        stack_axis: Stacking direction (0=x,1=y,2=z).
-        interface_distance: Distance between surfaces.
-        conventional: Whether to convert to conventional cells.
-        max_strain: Allowed lattice mismatch.
-        output_file: Output CIF path.
+        material1_path (Path): First slab structure.
+        material2_path (Path): Second slab structure.
+        stack_axis (int): Axis along which slabs are stacked (0=x,1=y,2=z).
+        interface_distance (float): Distance between the two slabs (Å).
+        max_strain (float): Max allowed relative mismatch in a/b directions.
+        output_file (str): Output CIF file name.
 
     Returns:
-        dict with structure_file (Path)
+        dict: {"structure_file": Path}
     """
     try:
-        surf1 = read(str(material1_path))
-        surf2 = read(str(material2_path))
+        # Read structures
+        slab1 = read(str(material1_path))
+        slab2 = read(str(material2_path))
 
+        # Determine in-plane axes
         axes = [0, 1, 2]
-        axes.remove(stack_axis)
-        axis1, axis2 = axes
+        if stack_axis not in axes:
+            raise ValueError(f"Invalid stack_axis={stack_axis}. Must be 0, 1, or 2.")
+        axis1, axis2 = [ax for ax in axes if ax != stack_axis]
 
-        len1_a = np.linalg.norm(surf1.cell[axis1])
-        len1_b = np.linalg.norm(surf1.cell[axis2])
-        len2_a = np.linalg.norm(surf2.cell[axis1])
-        len2_b = np.linalg.norm(surf2.cell[axis2])
+        # Lattice vector lengths
+        len1_a = np.linalg.norm(slab1.cell[axis1])
+        len1_b = np.linalg.norm(slab1.cell[axis2])
+        len2_a = np.linalg.norm(slab2.cell[axis1])
+        len2_b = np.linalg.norm(slab2.cell[axis2])
+
+        # Strain calculation
         strain_a = abs(len1_a - len2_a) / ((len1_a + len2_a) / 2)
         strain_b = abs(len1_b - len2_b) / ((len1_b + len2_b) / 2)
 
         if strain_a > max_strain or strain_b > max_strain:
-            raise ValueError(f"Lattice mismatch too large: strain_a={strain_a:.3f}, strain_b={strain_b:.3f}")
+            raise ValueError(
+                f"Lattice mismatch too large:\n"
+                f"  - Axis {axis1}: strain = {strain_a:.3f}\n"
+                f"  - Axis {axis2}: strain = {strain_b:.3f}\n"
+                f"Max allowed: {max_strain:.3f}"
+            )
 
-        scale_a = len1_a / len2_a
-        scale_b = len1_b / len2_b
-        new_cell2 = surf2.cell.copy()
-        new_cell2[axis1] *= scale_a
-        new_cell2[axis2] *= scale_b
-        surf2.set_cell(new_cell2, scale_atoms=True)
+        # Stack the slabs using ASE
+        interface = stack(
+            slab1, slab2,
+            axis=stack_axis,
+            maxstrain=max_strain,
+            distance=interface_distance
+        )
 
-        max1 = max(surf1.positions[:, stack_axis])
-        min2 = min(surf2.positions[:, stack_axis])
-        shift = max1 - min2 + interface_distance
-        surf2.positions[:, stack_axis] += shift
-
-        atoms = surf1 + surf2
-        atoms.center(axis=stack_axis)
-
-        write(output_file, atoms)
+        # Write to file
+        write(output_file, interface)
         logging.info(f"Interface structure saved to: {output_file}")
         return {"structure_file": Path(output_file)}
+
     except Exception as e:
         logging.error(f"Interface structure building failed: {str(e)}", exc_info=True)
         return {
-            "structure_file": Path(""), 
+            "structure_file": Path(""),
             "message": f"Interface structure building failed: {str(e)}"
         }
 
