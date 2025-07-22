@@ -116,19 +116,39 @@ def _prim2conven(ase_atoms: Atoms) -> Atoms:
     return conven_atoms
 
 
-def _make_supercell(ase_atoms: Atoms, supercell_matrix: list[int] = [3, 3, 3]) -> Atoms:
+@mcp.tool()
+def make_supercell_structure(
+    structure_path: Path,
+    supercell_matrix: list[int] = [1, 1, 1],
+    output_file: str = "structure_supercell.cif"
+) -> BuildStructureResult:
     """
-    Generate a supercell from the given ASE Atoms object using the specified repetition matrix.
+    Generate a supercell from an existing atomic structure.
 
-    Parameters:
-        ase_atoms (Atoms): The original atomic structure (unit cell).
-        supercell_matrix (list[int]): A list of three integers specifying the number of repetitions 
-                                    along each lattice vector direction [nx, ny, nz].
+    This tool takes an input structure file and generates a supercell by repeating it
+    along the three lattice directions according to the specified supercell matrix.
+
+    Args:
+        structure_path (Path): Path to input structure file (CIF, POSCAR, etc.).
+        supercell_matrix (list[int]): A list of three integers [nx, ny, nz] specifying the number 
+            of repetitions along each lattice vector. Default is [2, 2, 2].
+        output_file (str): Path to save the generated supercell structure.
 
     Returns:
-        Atoms: The resulting supercell as a new ASE Atoms object.
+        dict with structure_file (Path): Path to the generated supercell structure file.
     """
-    return ase_atoms.repeat(supercell_matrix)
+    try:
+        atoms = read(str(structure_path))
+        supercell_atoms = atoms.repeat(supercell_matrix)
+        write(output_file, supercell_atoms)
+        logging.info(f"Supercell structure saved to: {output_file}")
+        return {"structure_file": Path(output_file)}
+    except Exception as e:
+        logging.error(f"Supercell generation failed: {str(e)}", exc_info=True)
+        return {
+            "structure_file": Path(""),
+            "message": f"Supercell generation failed: {str(e)}"
+        }
 
 
 @mcp.tool()
@@ -140,7 +160,6 @@ def build_bulk_structure(
     b: Optional[float] = None,
     c: Optional[float] = None,
     alpha: Optional[float] = None,
-    supercell_matrix: list[int] = [1, 1, 1],
     output_file: str = "structure_bulk.cif"
 ) -> BuildStructureResult:
     """
@@ -151,8 +170,6 @@ def build_bulk_structure(
         conventional (bool): If True, convert to conventional standard cell.
         crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
         a, b, c, alpha: Lattice parameters.
-        supercell_matrix (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
         output_file (str): Path to save CIF.
 
     Returns:
@@ -162,8 +179,6 @@ def build_bulk_structure(
         atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
         if conventional:
             atoms = _prim2conven(atoms)
-        if supercell_matrix != [1, 1, 1]:
-            atoms = _make_supercell(atoms, supercell_matrix)
         write(output_file, atoms)
         logging.info(f"Bulk structure saved to: {output_file}")
         return {"structure_file": Path(output_file)}
@@ -212,7 +227,6 @@ def build_surface_slab(
     b: Optional[float] = None,
     c: Optional[float] = None,
     alpha: Optional[float] = None,
-    supercell_matrix: list[int] = [1, 1, 1],
     miller_index: List[int] = (1, 0, 0),
     layers: int = 4,
     vacuum: float = 10.0,
@@ -226,8 +240,6 @@ def build_surface_slab(
         material_path (Path): Path to existing structure file.
         crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
         a, b, c, alpha: Lattice parameters.
-        supercell_matrix (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
         miller_index (list of 3 ints): Miller index.
         layers (int): Number of layers in slab.
         vacuum (float): Vacuum spacing in Å.
@@ -241,9 +253,8 @@ def build_surface_slab(
             bulk_atoms = read(str(material_path))
         else:
             bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
-        if supercell_matrix != [1, 1, 1]:
-            bulk_atoms = _make_supercell(bulk_atoms, supercell_matrix)
-        slab = surface(bulk_atoms, miller_index, layers, vacuum=vacuum)
+        slab = surface(bulk_atoms, miller_index, layers)
+        slab.center(vacuum=vacuum, axis=2)        
         write(output_file, slab)
         logging.info(f"Surface structure saved to: {output_file}")
         return {"structure_file": Path(output_file)}
@@ -285,8 +296,6 @@ def build_surface_adsorbate(
         crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
         a, b, c, alpha: Lattice parameters.
         miller_index (list of 3 ints): Miller index.
-        supercell_matrix (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
         shift (list[float] or str or None): x,y placement within surface cell.
             - None: use center of cell.
             - [x, y]: Cartesian coordinates in Å.
@@ -304,8 +313,6 @@ def build_surface_adsorbate(
             bulk_atoms = read(str(material_path))
         else:
             bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
-        if supercell_matrix != [1, 1, 1]:
-            bulk_atoms = _make_supercell(bulk_atoms, supercell_matrix)
         slab = surface(bulk_atoms, miller_index, layers, vacuum=vacuum)
         if adsorbate_path is not None:
             adsorbate_atoms = read(str(adsorbate_path))
@@ -362,8 +369,6 @@ def build_surface_interface(
     alpha2: Optional[float] = None,
     miller_index1: List[int] = (1, 0, 0),
     miller_index2: List[int] = (1, 0, 0),
-    supercell_matrix1: list[int] = [1, 1, 1],
-    supercell_matrix2: list[int] = [1, 1, 1],
     layers1: int = 4,
     layers2: int = 3,
     vacuum1: float = 10.0,
@@ -383,8 +388,6 @@ def build_surface_interface(
         crystal_structure1/2 (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
         a1, b1, c1, alpha1; a2, b2, c2, alpha2: Lattice constants.
         miller_index1/2: Miller indices for surfaces.
-        supercell_matrix1/2 (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
         layers1/2: Number of layers.
         vacuum1/2: Vacuum spacing.
         stack_axis: Stacking direction (0=x,1=y,2=z).
@@ -408,10 +411,6 @@ def build_surface_interface(
         if conventional:
             bulk1 = _prim2conven(bulk1)
             bulk2 = _prim2conven(bulk2)
-        if supercell_matrix1 != [1, 1, 1]:
-            bulk1 = _make_supercell(bulk1, supercell_matrix1)
-        if supercell_matrix2 != [1, 1, 1]:
-            bulk2 = _make_supercell(bulk2, supercell_matrix2)
         surf1 = surface(bulk1, miller_index1, layers1)
         surf2 = surface(bulk2, miller_index2, layers2)
 
