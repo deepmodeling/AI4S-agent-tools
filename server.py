@@ -220,13 +220,7 @@ def build_molecule_structure(
 
 @mcp.tool()
 def build_surface_slab(
-    material: Optional[str] = None,
     material_path: Optional[Path] = None,
-    crystal_structure: str = 'fcc',
-    a: Optional[float] = None,
-    b: Optional[float] = None,
-    c: Optional[float] = None,
-    alpha: Optional[float] = None,
     miller_index: List[int] = (1, 0, 0),
     layers: int = 4,
     vacuum: float = 10.0,
@@ -236,10 +230,7 @@ def build_surface_slab(
     Build a surface slab structure using ASE.
 
     Args:
-        material (str): str for chemical formula (e.g. BN)
         material_path (Path): Path to existing structure file.
-        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a, b, c, alpha: Lattice parameters.
         miller_index (list of 3 ints): Miller index.
         layers (int): Number of layers in slab.
         vacuum (float): Vacuum spacing in Å.
@@ -249,10 +240,7 @@ def build_surface_slab(
         dict with structure_file (Path)
     """
     try:
-        if material_path is not None:
-            bulk_atoms = read(str(material_path))
-        else:
-            bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
+        bulk_atoms = read(str(material_path))
         slab = surface(bulk_atoms, miller_index, layers)
         slab.center(vacuum=vacuum, axis=2)        
         write(output_file, slab)
@@ -266,41 +254,34 @@ def build_surface_slab(
         }
 
 
+
+def _fractional_to_cartesian_2d(atoms, frac_xy, z=0.0):
+    """Convert fractional coords to cartesian"""
+    frac = np.array([frac_xy[0], frac_xy[1], z])
+    cell = atoms.get_cell()  # shape (3, 3)
+    cart = np.dot(frac, cell)  # shape (3,)
+    return cart[:2]
+
+
 @mcp.tool()
 def build_surface_adsorbate(
-    material: Optional[str] = None,
-    adsorbate: Optional[str] = None,
-    material_path: Optional[Path] = None,
+    surface_path: Optional[Path] = None,
     adsorbate_path: Optional[Path] = None,
-    crystal_structure: str = 'fcc',
-    a: Optional[float] = None,
-    b: Optional[float] = None,
-    c: Optional[float] = None,
-    alpha: Optional[float] = None,
-    miller_index: List[int] = (1, 0, 0),
-    supercell_matrix: list[int] = [1, 1, 1],
-    shift: Optional[Union[List[float], str]] = None,
-    height: Optional[float] = None,
-    layers: int = 4,
-    vacuum: float = 10.0,
+    shift: Optional[Union[List[float], str]] = [0.5, 0.5],
+    height: Optional[float] = 2.0,
     output_file: str = "structure_adsorbate.cif"
 ) -> BuildStructureResult:
     """
     Build a surface-adsorbate structure using ASE.
 
     Args:
-        material (str): str for chemical formula (e.g. BN).
-        adsorbate (str): Used for building structures from scratch a string representing a molecule name supported by ASE. Options are: PH3, P2, CH3CHO, H2COH, CS, OCHCHO, C3H9C, CH3COF, CH3CH2OCH3, HCOOH, HCCl3, HOCl, H2, SH2, C2H2, C4H4NH, CH3SCH3, SiH2_s3B1d, CH3SH, CH3CO, CO, ClF3, SiH4, C2H6CHOH, CH2NHCH2, isobutene, HCO, bicyclobutane, LiF, Si, C2H6, CN, ClNO, S, SiF4, H3CNH2, methylenecyclopropane, CH3CH2OH, F, NaCl, CH3Cl, CH3SiH3, AlF3, C2H3, ClF, PF3, PH2, CH3CN, cyclobutene, CH3ONO, SiH3, C3H6_D3h, CO2, NO, trans-butane, H2CCHCl, LiH, NH2, CH, CH2OCH2, C6H6, CH3CONH2, cyclobutane, H2CCHCN, butadiene, C, H2CO, CH3COOH, HCF3, CH3S, CS2, SiH2_s1A1d, C4H4S, N2H4, OH, CH3OCH3, C5H5N, H2O, HCl, CH2_s1A1d, CH3CH2SH, CH3NO2, Cl, Be, BCl3, C4H4O, Al, CH3O, CH3OH, C3H7Cl, isobutane, Na, CCl4, CH3CH2O, H2CCHF, C3H7, CH3, O3, P, C2H4, NCCN, S2, AlCl3, SiCl4, SiO, C3H4_D2d, H, COF2, 2-butyne, C2H5, BF3, N2O, F2O, SO2, H2CCl2, CF3CN, HCN, C2H6NH, OCS, B, ClO, C3H8, HF, O2, SO, NH, C2F4, NF3, CH2_s3B1d, CH3CH2Cl, CH3COCl, NH3, C3H9N, CF4, C3H6_Cs, Si2H6, HCOOCH3, O, CCH, N, Si2, C2H6SO, C5H8, H2CF2, Li2, CH2SCH2, C2Cl4, C3H4_C3v, CH3COCH3, F2, CH4, SH, H2CCO, CH3CH2NH2, Li, N2, Cl2, H2O2, Na2, BeH, C3H4_C2v, NO2.
-        material_path (Path): Path to existing structure file, used for building structures from existing structures.
-        adsorbate_path (Path): Path to existing structure file, used for building structures from existing structures.
-        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a, b, c, alpha: Lattice parameters.
-        miller_index (list of 3 ints): Miller index.
+        surface_path (Path): Path to existing surface file.
+        adsorbate_path (Path): Path to existing adsorbate molecule file.
         shift (list[float] or str or None): x,y placement within surface cell.
             - None: use center of cell.
-            - [x, y]: Cartesian coordinates in Å.
+            - [x, y]: Fractional coordinates in Å.
             - 'ontop', 'fcc', etc.: use ASE keyword site.
-        height (float or None): height above surface (Å). None = default 2 Å.
+        height (float): height above surface (Å). default is 2 Å.
         layers (int): Number of layers in slab.
         vacuum (float): Vacuum spacing in Å.
         output_file (str): Path to save CIF.
@@ -309,36 +290,18 @@ def build_surface_adsorbate(
         dict with structure_file (Path)
     """
     try:
-        if material_path is not None:
-            bulk_atoms = read(str(material_path))
-        else:
-            bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
-        slab = surface(bulk_atoms, miller_index, layers, vacuum=vacuum)
-        if adsorbate_path is not None:
-            adsorbate_atoms = read(str(adsorbate_path))
-        else:
-            adsorbate_atoms = molecule(adsorbate)
-        
+        slab = read(str(surface_path))
+        adsorbate_atoms = read(str(adsorbate_path))        
 
         # Determine adsorbate shift & height
-        zsurf_max = max(slab.positions[:, 2])
-        # default center
-        default_frac = (0.5, 0.5)
-        if shift is None:
-            pos = default_frac
-        elif isinstance(shift, str):
+        if isinstance(shift, str):
             pos = shift
         elif isinstance(shift, (list, tuple)) and len(shift) == 2:
-            # convert Cartesian x,y to fractional
-            cell2d = np.vstack((slab.cell[0][:2], slab.cell[1][:2]))
-            frac_xy = np.linalg.solve(cell2d.T, np.array(shift))
-            pos = (float(frac_xy[0]), float(frac_xy[1]))
+            pos = _fractional_to_cartesian_2d(slab, shift)            
         else:
             raise ValueError("`shift` must be None, keyword site, or [x, y] coordinates")
-        # determine height
-        height_val = height if height is not None else zsurf_max + 2.0
-
-        add_adsorbate(slab, adsorbate_atoms, height_val, position=pos)
+        
+        add_adsorbate(slab, adsorbate_atoms, height, position=pos)
 
         write(output_file, slab)
         logging.info(f"Surface-adsorbate structure saved to: {output_file}")
@@ -353,29 +316,10 @@ def build_surface_adsorbate(
 
 @mcp.tool()
 def build_surface_interface(
-    material1: Optional[str] = None,
-    material2: Optional[str] = None,
     material1_path: Optional[Path] = None,
     material2_path: Optional[Path] = None,
-    crystal_structure1: str = 'fcc',
-    crystal_structure2: str = 'fcc',
-    a1: Optional[float] = None,
-    b1: Optional[float] = None,
-    c1: Optional[float] = None,
-    alpha1: Optional[float] = None,
-    a2: Optional[float] = None,
-    b2: Optional[float] = None,
-    c2: Optional[float] = None,
-    alpha2: Optional[float] = None,
-    miller_index1: List[int] = (1, 0, 0),
-    miller_index2: List[int] = (1, 0, 0),
-    layers1: int = 4,
-    layers2: int = 3,
-    vacuum1: float = 10.0,
-    vacuum2: float = 10.0,
     stack_axis: int = 2,
     interface_distance: float = 2.5,
-    conventional: bool = True,
     max_strain: float = 0.05,
     output_file: str = "structure_interface.cif"
 ) -> BuildStructureResult:
@@ -383,13 +327,7 @@ def build_surface_interface(
     Build an interface structure between two materials.
 
     Args:
-        material1/2 (str): str for chemical formula (e.g. BN), used for building structures from scratch.
         material1_path/2_path (Path): Path to existing structure file, used for building structures from existing structures.
-        crystal_structure1/2 (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a1, b1, c1, alpha1; a2, b2, c2, alpha2: Lattice constants.
-        miller_index1/2: Miller indices for surfaces.
-        layers1/2: Number of layers.
-        vacuum1/2: Vacuum spacing.
         stack_axis: Stacking direction (0=x,1=y,2=z).
         interface_distance: Distance between surfaces.
         conventional: Whether to convert to conventional cells.
@@ -400,19 +338,8 @@ def build_surface_interface(
         dict with structure_file (Path)
     """
     try:
-        if material1_path is not None:
-            bulk1 = read(str(material1_path))
-        else:
-            bulk1 = bulk(material1, crystal_structure1, a=a1, b=b1, c=c1, alpha=alpha1)
-        if material2_path is not None:
-            bulk2 = read(str(material2_path))
-        else:
-            bulk2 = bulk(material2, crystal_structure2, a=a2, b=b2, c=c2, alpha=alpha2)
-        if conventional:
-            bulk1 = _prim2conven(bulk1)
-            bulk2 = _prim2conven(bulk2)
-        surf1 = surface(bulk1, miller_index1, layers1)
-        surf2 = surface(bulk2, miller_index2, layers2)
+        surf1 = read(str(material1_path))
+        surf2 = read(str(material2_path))
 
         axes = [0, 1, 2]
         axes.remove(stack_axis)
@@ -441,7 +368,7 @@ def build_surface_interface(
         surf2.positions[:, stack_axis] += shift
 
         atoms = surf1 + surf2
-        atoms.center(vacuum=vacuum1 + vacuum2, axis=stack_axis)
+        atoms.center(axis=stack_axis)
 
         write(output_file, atoms)
         logging.info(f"Interface structure saved to: {output_file}")
