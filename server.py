@@ -485,41 +485,41 @@ def calculate_phonon(
 ) -> PhononResult:
     """Calculate phonon properties using a Deep Potential (DP) model.
 
-        Args:
-            cif_file (Path): Path to the input CIF structure file.
-            model_path (Path): Path to the Deep Potential model file.
-                Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
-            head (str, optional): Model head corresponding to the application domain. Options are:
-                - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
-                and molecular fragments in aqueous or biological environments.
-                - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
-                and other extended solid-state systems. (This is the **default** head.)
-                - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
-                and general organic chemistry structures.
-                - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
-                adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
-                - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
-                and energy profiling of organic chemical transformations.
-                Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
-            supercell_matrix (list[int], optional): 2×2×2 matrix for supercell expansion.
-                Defaults to [2, 2, 2].
-            displacement_distance (float, optional): Atomic displacement distance in Ångström.
-                Default is 0.005 Å.
-            temperatures (tuple, optional): Tuple of temperatures (in Kelvin) for thermal property calculations.
-                Default is (300,).
-            plot_path (str, optional): File path to save the phonon band structure plot.
-                Default is "phonon_band.png".
+    Args:
+        cif_file (Path): Path to the input CIF structure file.
+        model_path (Path): Path to the Deep Potential model file.
+            Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+        head (str, optional): Model head corresponding to the application domain. Options are:
+            - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
+            and molecular fragments in aqueous or biological environments.
+            - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
+            and other extended solid-state systems. (This is the **default** head.)
+            - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
+            and general organic chemistry structures.
+            - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
+            adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
+            - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
+            and energy profiling of organic chemical transformations.
+            Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
+        supercell_matrix (list[int], optional): 2×2×2 matrix for supercell expansion.
+            Defaults to [2, 2, 2].
+        displacement_distance (float, optional): Atomic displacement distance in Ångström.
+            Default is 0.005 Å.
+        temperatures (tuple, optional): Tuple of temperatures (in Kelvin) for thermal property calculations.
+            Default is (300,).
+        plot_path (str, optional): File path to save the phonon band structure plot.
+            Default is "phonon_band.png".
 
-    Returns:
-        dict: A dictionary containing phonon properties:
-            - entropy (float): Phonon entropy at given temperature [J/mol·K].
-            - free_energy (float): Helmholtz free energy [kJ/mol].
-            - heat_capacity (float): Heat capacity at constant volume [J/mol·K].
-            - max_frequency_THz (float): Maximum phonon frequency in THz.
-            - max_frequency_K (float): Maximum phonon frequency in Kelvin.
-            - band_plot (str): File path to the generated band structure plot.
-            - band_yaml (str): File path to the band structure data in YAML format.
-            - band_dat (str): File path to the band structure data in DAT format.
+Returns:
+    dict: A dictionary containing phonon properties:
+        - entropy (float): Phonon entropy at given temperature [J/mol·K].
+        - free_energy (float): Helmholtz free energy [kJ/mol].
+        - heat_capacity (float): Heat capacity at constant volume [J/mol·K].
+        - max_frequency_THz (float): Maximum phonon frequency in THz.
+        - max_frequency_K (float): Maximum phonon frequency in Kelvin.
+        - band_plot (str): File path to the generated band structure plot.
+        - band_yaml (str): File path to the band structure data in YAML format.
+        - band_dat (str): File path to the band structure data in DAT format.
     """
 
     if supercell_matrix is None or len(supercell_matrix) == 0:
