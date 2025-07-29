@@ -97,7 +97,7 @@ class ElasticResult(TypedDict):
 
 class NEBResult(TypedDict):
     """Result of NEB calculation"""
-    neb_energy: float
+    neb_energy: tuple[float, ...]
     neb_traj: Path
 
 
@@ -1075,7 +1075,7 @@ def run_neb(
 
     Returns:
         dict: A dictionary containing:
-            - energy_barrier (float): Energy barrier in eV.
+            - neb_energy (tuple): Energy barrier in eV.
             - neb_traj (Path): Path to the NEB band as a PDF file.
     """
     try:
@@ -1106,7 +1106,7 @@ def run_neb(
         energy_barrier = neb_tool.get_barrier()
         neb_tool.plot_bands("neb_band.pdf")
         return {
-            "energy_barrier": float(energy_barrier),
+            "neb_energy": energy_barrier,
             "neb_traj": Path("neb_band.pdf")
         }
 
