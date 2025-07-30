@@ -1104,10 +1104,11 @@ def run_neb(
             conv = opt.run(fmax=max_force, steps=max_steps)
         neb_tool = NEBTools(neb.images)
         energy_barrier = neb_tool.get_barrier()
-        neb_tool.plot_bands("neb_band.pdf")
+        output_label = "neb_band"
+        neb_tool.plot_bands(label=output_label)
         return {
             "neb_energy": energy_barrier,
-            "neb_traj": Path("neb_band.pdf")
+            "neb_traj": Path(f"{output_label}.pdf")
         }
 
     except Exception as e:
