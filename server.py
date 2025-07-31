@@ -220,7 +220,7 @@ def build_molecule_structure(
 
 @mcp.tool()
 def build_surface_slab(
-    material_path: Optional[Path] = None,
+    material_path: Path = None,
     miller_index: List[int] = (1, 0, 0),
     layers: int = 4,
     vacuum: float = 10.0,
@@ -265,8 +265,8 @@ def _fractional_to_cartesian_2d(atoms, frac_xy, z=0.0):
 
 @mcp.tool()
 def build_surface_adsorbate(
-    surface_path: Optional[Path] = None,
-    adsorbate_path: Optional[Path] = None,
+    surface_path: Path = None,
+    adsorbate_path: Path = None,
     shift: Optional[Union[List[float], str]] = [0.5, 0.5],
     height: Optional[float] = 2.0,
     output_file: str = "structure_adsorbate.cif"
@@ -316,8 +316,8 @@ def build_surface_adsorbate(
 
 @mcp.tool()
 def build_surface_interface(
-    material1_path: Optional[Path] = None,
-    material2_path: Optional[Path] = None,
+    material1_path: Path = None,
+    material2_path: Path = None,
     stack_axis: int = 2,
     interface_distance: float = 2.5,
     max_strain: float = 0.2,
