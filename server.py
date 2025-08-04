@@ -92,12 +92,13 @@ def _get_dataset(path: Path) -> list:
 
 @mcp.tool()
 def train_dp_model(
-    model_type: str,
+    config_file: Path,
     training_path: Path,
     validation_path: Path,
     init_model: Optional[Path] = None,
     restart_model: Optional[Path] = None,
     finetune_model: Optional[Path] = None,
+    model_branch: Optional[str] = None,
     output_dir: str = "./training_output"
 ) -> dict:
     """
@@ -108,12 +109,13 @@ def train_dp_model(
     The training is performed using the command line interface 'dp --pt train input.json'.
     
     Args:
-        model_type (str): Type of the DP model to train. Supported values: "DPA1", "DPA2", "DPA3".
+        config_file (Path): Path to the configuration file.
         training_path (Path): Path to the training data set.
         validation_path (Path): Path to the validation data set.
         init_model (Path, optional): Path to the model used for initialization (Init-model).
         restart_model (Path, optional): Path to the model used for restarting training.
         finetune_model (Path, optional): Path to the model used for fine-tuning.
+        model_branch (str, optional): Model branch name for fine-tuning.
         output_dir (str): Directory to save the trained model and training logs.
             Default is "./training_output".
             
@@ -124,11 +126,7 @@ def train_dp_model(
             - message (str): Status message indicating success or failure.
     """    
     try:
-        # Create output directory
-        model_type = model_type.replace("-","").replace("_","").upper()
         os.makedirs(output_dir, exist_ok=True)
-        config_file = MODEL_TEMPLATE_DICT[model_type]
-        # Load and normalize config
         with open(config_file, 'r') as f:
             config = json.load(f)
         config = normalize(config)
@@ -158,8 +156,13 @@ def train_dp_model(
         try:
             # Run the training using dp command
             import subprocess
-            result = subprocess.run(["dp", "--pt", "train", "input.json"], 
-                                  capture_output=True, text=True)
+            
+            # Build command based on provided parameters
+            cmd = ["dp", "--pt", "train", "input.json"]
+            if finetune_model and model_branch:
+                cmd.extend(["--finetune", str(finetune_model), "--model-branch", model_branch])
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode != 0:
                 raise RuntimeError(f"Training failed with error: {result.stderr}")
