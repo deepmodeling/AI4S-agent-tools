@@ -2,45 +2,48 @@ import glob
 import logging
 import os
 import sys
+import gc
 from pathlib import Path
 from typing import Literal, Optional, Tuple, TypedDict, List, Dict, Union
 import sys
 import argparse
+import traceback
+import json
+import dpdata
 
 import numpy as np
-from ase import Atoms, io, units
-from ase.build import add_adsorbate, add_vacuum, bulk, molecule, surface, stack
-from ase.constraints import ExpCellFilter
-from ase.io import read, write
-from ase.md.andersen import Andersen
-from ase.md.langevin import Langevin
-from ase.md.nose_hoover_chain import NoseHooverChainNVT
-from ase.md.npt import NPT
-from ase.md.nvtberendsen import NVTBerendsen
-from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
-                                         Stationary, ZeroRotation)
-from ase.md.verlet import VelocityVerlet
-from ase.mep import NEB, NEBTools
-from ase.optimize import BFGS
-from ase.optimize.precon import Exp
-from deepmd.calculator import DP
+from deepmd.infer.deep_eval import DeepEval
+from deepmd.utils.argcheck import normalize
 from dp.agent.server import CalculationMCPServer
-from phonopy import Phonopy
-from phonopy.harmonic.dynmat_to_fc import get_commensurate_points
-from phonopy.structure.atoms import PhonopyAtoms
-from pymatgen.analysis.elasticity import (DeformedStructureSet, ElasticTensor,
-                                          Strain)
-from pymatgen.analysis.elasticity.elastic import get_strain_state_dict
-from pymatgen.io.ase import AseAtomsAdaptor
-from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
-### CONSTANTS
-THz_TO_K = 47.9924  # 1 THz ≈ 47.9924 K
-EV_A3_TO_GPA = 160.21766208 # eV/Å³ to GPa
+
+MODEL_TEMPLATE_DICT = {
+    "DPA1": "dpa1_train.json",
+    "DPA2": "dpa2_train.json",
+    "DPA3": "dpa3_train.json",
+}
+
+ALL_TYPE_MAP = [
+    "H", "He", 
+    "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+    "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", 
+    "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", 
+    "Ga", "Ge", "As", "Se", "Br", "Kr", 
+    "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", 
+    "In", "Sn", "Sb", "Te", "I", "Xe",
+    "Cs", "Ba", 
+    "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb",
+    "Dy", "Ho", "Er", "Tm", "Yb", "Lu", 
+    "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg", 
+    "Tl", "Pb", "Bi", "Po", "At", "Rn",
+    "Fr", "Ra", "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf",
+    "Es", "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt",
+    "Ds", "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og"
+]
 
 def parse_args():
     """Parse command line arguments for MCP server."""
-    parser = argparse.ArgumentParser(description="DPA Calculator MCP Server")
+    parser = argparse.ArgumentParser(description="DP Combo MCP Server")
     parser.add_argument('--port', type=int, default=50001, help='Server port (default: 50001)')
     parser.add_argument('--host', default='0.0.0.0', help='Server host (default: 0.0.0.0)')
     parser.add_argument('--log-level', default='INFO', 
@@ -58,1066 +61,802 @@ def parse_args():
 
 
 args = parse_args()
-mcp = CalculationMCPServer("DPACalculatorServer", host=args.host, port=args.port)
+mcp = CalculationMCPServer("DPComboServer", host=args.host, port=args.port)
 
 
-class OptimizationResult(TypedDict):
-    """Result structure for structure optimization"""
-    optimized_structure: Path
-    optimization_traj: Optional[Path]
-    final_energy: float
-    message: str
+def _get_dataset(path: Path) -> list:
+    if os.path.isfile(path):
+        import zipfile
+        import tarfile
+        if zipfile.is_zipfile(path) or tarfile.is_tarfile(path):
+            extract_dir = path.with_suffix('').with_suffix('') if path.suffix in ['.zip', '.tar', '.gz', '.tgz'] else path.with_name(path.name + '_extracted')
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            if zipfile.is_zipfile(path):
+                with zipfile.ZipFile(path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_dir)
+            elif tarfile.is_tarfile(path):
+                with tarfile.open(path, 'r:*') as tar_ref:
+                    tar_ref.extractall(extract_dir)
+            
+            path = extract_dir
 
-class PhononResult(TypedDict):
-    """Result structure for phonon calculation"""
-    entropy: float
-    free_energy: float
-    heat_capacity: float
-    max_frequency_THz: float
-    max_frequency_K: float
-    band_plot: Path
-    band_yaml: Path
-    band_dat: Path
+    valid_datapath = []
+    for r, _, f in os.walk(path):
+        for file in f:
+            if "type_map.raw" in file:
+                valid_datapath.append(r)
 
-class BuildStructureResult(TypedDict):
-    """Result structure for crystal structure building"""
-    structure_file: Path
-
-class MDResult(TypedDict):
-    """Result of MD simulation"""
-    final_structure: Path
-    trajectory_dir: Path
-    log_file: Path
-
-class ElasticResult(TypedDict):
-    """Result of elastic constant calculation"""
-    bulk_modulus: float
-    shear_modulus: float
-    youngs_modulus: float
-
-class NEBResult(TypedDict):
-    """Result of NEB calculation"""
-    neb_energy: tuple[float, ...]
-    neb_traj: Path
-
-
-def _prim2conven(ase_atoms: Atoms) -> Atoms:
-    """
-    Convert a primitive cell (ASE Atoms) to a conventional standard cell using pymatgen.
-    Parameters:
-        ase_atoms (ase.Atoms): Input primitive cell.
-    Returns:
-        ase.Atoms: Conventional cell.
-    """
-    structure = AseAtomsAdaptor.get_structure(ase_atoms)
-    analyzer = SpacegroupAnalyzer(structure, symprec=1e-3)
-    conven_structure = analyzer.get_conventional_standard_structure()
-    conven_atoms = AseAtomsAdaptor.get_atoms(conven_structure)
-    return conven_atoms
+    return valid_datapath
 
 
 @mcp.tool()
-def make_supercell_structure(
-    structure_path: Path,
-    supercell_matrix: list[int] = [1, 1, 1],
-    output_file: str = "structure_supercell.cif"
-) -> BuildStructureResult:
-    """
-    Generate a supercell from an existing atomic structure.
-
-    This tool takes an input structure file and generates a supercell by repeating it
-    along the three lattice directions according to the specified supercell matrix.
-
-    Args:
-        structure_path (Path): Path to input structure file (CIF, POSCAR, etc.).
-        supercell_matrix (list[int]): A list of three integers [nx, ny, nz] specifying the number 
-            of repetitions along each lattice vector. Default is [2, 2, 2].
-        output_file (str): Path to save the generated supercell structure.
-
-    Returns:
-        dict with structure_file (Path): Path to the generated supercell structure file.
-    """
-    try:
-        atoms = read(str(structure_path))
-        supercell_atoms = atoms.repeat(supercell_matrix)
-        write(output_file, supercell_atoms)
-        logging.info(f"Supercell structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Supercell generation failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""),
-            "message": f"Supercell generation failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_bulk_structure(
-    material: str,
-    conventional: bool = True,
-    crystal_structure: str = 'fcc',
-    a: Optional[float] = None,
-    b: Optional[float] = None,
-    c: Optional[float] = None,
-    alpha: Optional[float] = None,
-    output_file: str = "structure_bulk.cif"
-) -> BuildStructureResult:
-    """
-    Build a bulk crystal structure using ASE.
-
-    Args:
-        material (str): Element or chemical formula.
-        conventional (bool): If True, convert to conventional standard cell.
-        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a, b, c, alpha: Lattice parameters.
-        output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
-        if conventional:
-            atoms = _prim2conven(atoms)
-        write(output_file, atoms)
-        logging.info(f"Bulk structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Bulk structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Bulk structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_molecule_structure(
-    molecule_name: str,
-    output_file: str = "structure_molecule.xyz"
-) -> BuildStructureResult:
-    """
-    Build a molecule structure using ASE.
-
-    Args:
-        - molecule_name (str): Options are: PH3, P2, CH3CHO, H2COH, CS, OCHCHO, C3H9C, CH3COF, CH3CH2OCH3, HCOOH, HCCl3, HOCl, H2, SH2, C2H2, C4H4NH, CH3SCH3, SiH2_s3B1d, CH3SH, CH3CO, CO, ClF3, SiH4, C2H6CHOH, CH2NHCH2, isobutene, HCO, bicyclobutane, LiF, Si, C2H6, CN, ClNO, S, SiF4, H3CNH2, methylenecyclopropane, CH3CH2OH, F, NaCl, CH3Cl, CH3SiH3, AlF3, C2H3, ClF, PF3, PH2, CH3CN, cyclobutene, CH3ONO, SiH3, C3H6_D3h, CO2, NO, trans-butane, H2CCHCl, LiH, NH2, CH, CH2OCH2, C6H6, CH3CONH2, cyclobutane, H2CCHCN, butadiene, C, H2CO, CH3COOH, HCF3, CH3S, CS2, SiH2_s1A1d, C4H4S, N2H4, OH, CH3OCH3, C5H5N, H2O, HCl, CH2_s1A1d, CH3CH2SH, CH3NO2, Cl, Be, BCl3, C4H4O, Al, CH3O, CH3OH, C3H7Cl, isobutane, Na, CCl4, CH3CH2O, H2CCHF, C3H7, CH3, O3, P, C2H4, NCCN, S2, AlCl3, SiCl4, SiO, C3H4_D2d, H, COF2, 2-butyne, C2H5, BF3, N2O, F2O, SO2, H2CCl2, CF3CN, HCN, C2H6NH, OCS, B, ClO, C3H8, HF, O2, SO, NH, C2F4, NF3, CH2_s3B1d, CH3CH2Cl, CH3COCl, NH3, C3H9N, CF4, C3H6_Cs, Si2H6, HCOOCH3, O, CCH, N, Si2, C2H6SO, C5H8, H2CF2, Li2, CH2SCH2, C2Cl4, C3H4_C3v, CH3COCH3, F2, CH4, SH, H2CCO, CH3CH2NH2, Li, N2, Cl2, H2O2, Na2, BeH, C3H4_C2v, NO2
-        - output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        atoms = molecule(molecule_name)
-        write(output_file, atoms)
-        logging.info(f"Bulk structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Bulk structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Bulk structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_surface_slab(
-    material_path: Path = None,
-    miller_index: List[int] = (1, 0, 0),
-    layers: int = 4,
-    vacuum: float = 10.0,
-    output_file: str = "structure_slab.cif"
-) -> BuildStructureResult:
-    """
-    Build a surface slab structure using ASE.
-
-    Args:
-        material_path (Path): Path to existing structure file.
-        miller_index (list of 3 ints): Miller index.
-        layers (int): Number of layers in slab.
-        vacuum (float): Vacuum spacing in Å.
-        output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        bulk_atoms = read(str(material_path))
-        slab = surface(bulk_atoms, miller_index, layers)
-        slab.center(vacuum=vacuum, axis=2)        
-        write(output_file, slab)
-        logging.info(f"Surface structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Surface structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Surface structure building failed: {str(e)}"
-        }
-
-
-
-def _fractional_to_cartesian_2d(atoms, frac_xy, z=0.0):
-    """Convert fractional coords to cartesian"""
-    frac = np.array([frac_xy[0], frac_xy[1], z])
-    cell = atoms.get_cell()  # shape (3, 3)
-    cart = np.dot(frac, cell)  # shape (3,)
-    return cart[:2]
-
-
-@mcp.tool()
-def build_surface_adsorbate(
-    surface_path: Path = None,
-    adsorbate_path: Path = None,
-    shift: Optional[Union[List[float], str]] = [0.5, 0.5],
-    height: Optional[float] = 2.0,
-    output_file: str = "structure_adsorbate.cif"
-) -> BuildStructureResult:
-    """
-    Build a surface-adsorbate structure using ASE.
-
-    Args:
-        surface_path (Path): Path to existing surface file.
-        adsorbate_path (Path): Path to existing adsorbate molecule file.
-        shift (list[float] or str or None): x,y placement within surface cell.
-            - None: use center of cell.
-            - [x, y]: Fractional coordinates in Å.
-            - 'ontop', 'fcc', etc.: use ASE keyword site.
-        height (float): height above surface (Å). default is 2 Å.
-        layers (int): Number of layers in slab.
-        vacuum (float): Vacuum spacing in Å.
-        output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        slab = read(str(surface_path))
-        adsorbate_atoms = read(str(adsorbate_path))        
-
-        # Determine adsorbate shift & height
-        if isinstance(shift, str):
-            pos = shift
-        elif isinstance(shift, (list, tuple)) and len(shift) == 2:
-            pos = _fractional_to_cartesian_2d(slab, shift)            
-        else:
-            raise ValueError("`shift` must be None, keyword site, or [x, y] coordinates")
-        
-        add_adsorbate(slab, adsorbate_atoms, height, position=pos)
-
-        write(output_file, slab)
-        logging.info(f"Surface-adsorbate structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Surface structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Surface structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_surface_interface(
-    material1_path: Path = None,
-    material2_path: Path = None,
-    stack_axis: int = 2,
-    interface_distance: float = 2.5,
-    max_strain: float = 0.2,
-    output_file: str = "structure_interface.cif"
+def train_dp_model(
+    model_type: str,
+    training_path: Path,
+    validation_path: Path,
+    init_model: Optional[Path] = None,
+    restart_model: Optional[Path] = None,
+    finetune_model: Optional[Path] = None,
+    output_dir: str = "./training_output"
 ) -> dict:
     """
-    Build an interface between two structures with strain check.
-
+    Train a Deep Potential model using DeepMD-kit.
+    
+    This tool trains a Deep Potential model based on the provided configuration file.
+    It supports initialization from existing models, restarting training, and fine-tuning.
+    The training is performed using the command line interface 'dp --pt train input.json'.
+    
     Args:
-        material1_path (Path): First slab structure.
-        material2_path (Path): Second slab structure.
-        stack_axis (int): Axis along which slabs are stacked (0=x,1=y,2=z).
-        interface_distance (float): Distance between the two slabs (Å).
-        max_strain (float): Max allowed relative mismatch in a/b directions.
-        output_file (str): Output CIF file name.
-
-    Returns:
-        dict: {"structure_file": Path}
-    """
-    try:
-        # Read structures
-        slab1 = read(str(material1_path))
-        slab2 = read(str(material2_path))
-
-        # Determine in-plane axes
-        axes = [0, 1, 2]
-        if stack_axis not in axes:
-            raise ValueError(f"Invalid stack_axis={stack_axis}. Must be 0, 1, or 2.")
-        axis1, axis2 = [ax for ax in axes if ax != stack_axis]
-
-        # Lattice vector lengths
-        len1_a = np.linalg.norm(slab1.cell[axis1])
-        len1_b = np.linalg.norm(slab1.cell[axis2])
-        len2_a = np.linalg.norm(slab2.cell[axis1])
-        len2_b = np.linalg.norm(slab2.cell[axis2])
-
-        # Strain calculation
-        strain_a = abs(len1_a - len2_a) / ((len1_a + len2_a) / 2)
-        strain_b = abs(len1_b - len2_b) / ((len1_b + len2_b) / 2)
-
-        if strain_a > max_strain or strain_b > max_strain:
-            raise ValueError(
-                f"Lattice mismatch too large:\n"
-                f"  - Axis {axis1}: strain = {strain_a:.3f}\n"
-                f"  - Axis {axis2}: strain = {strain_b:.3f}\n"
-                f"Max allowed: {max_strain:.3f}"
-            )
-
-        # Stack the slabs using ASE
-        interface = stack(
-            slab1, slab2,
-            axis=stack_axis,
-            maxstrain=max_strain,
-            distance=interface_distance
-        )
-
-        # Write to file
-        write(output_file, interface)
-        logging.info(f"Interface structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-
-    except Exception as e:
-        logging.error(f"Interface structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""),
-            "message": f"Interface structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def optimize_crystal_structure( 
-    input_structure: Path,
-    model_path: Path,
-    head: str = "Omat24",
-    force_tolerance: float = 0.01, 
-    max_iterations: int = 100, 
-    relax_cell: bool = False,
-) -> OptimizationResult:
-    """Optimize crystal structure using a Deep Potential (DP) model.
-
-    Args:
-        input_structure (Path): Path to the input structure file (e.g., CIF, POSCAR).
-        model_path (Path): Path to the trained Deep Potential model directory.
-            Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
-        head (str, optional): Model head corresponding to the application domain. Options are:
-            - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
-            and molecular fragments in aqueous or biological environments.
-            - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
-            and other extended solid-state systems. (This is the **default** head.)
-            - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
-            and general organic chemistry structures.
-            - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
-            adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
-            - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
-            and energy profiling of organic chemical transformations.
-            Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
-        force_tolerance (float, optional): Convergence threshold for atomic forces in eV/Å.
-            Default is 0.01 eV/Å.
-        max_iterations (int, optional): Maximum number of geometry optimization steps.
-            Default is 100 steps.
-        relax_cell (bool, optional): Whether to relax the unit cell shape and volume in addition to atomic positions.
-            Default is False.
-
-
-    Returns:
-        dict: A dictionary containing optimization results:
-            - optimized_structure (Path): Path to the final optimized structure file.
-            - optimization_traj (Optional[Path]): Path to the optimization trajectory file, if available.
-            - final_energy (float): Final potential energy after optimization in eV.
-            - message (str): Status or error message describing the outcome.
-    """
-    try:
-        model_file = str(model_path)
-        base_name = input_structure.stem
-        
-        logging.info(f"Reading structure from: {input_structure}")
-        atoms = read(str(input_structure))
-        atoms.calc = DP(model=model_file, head=head)
-
-        traj_file = f"{base_name}_optimization_traj.extxyz"  
-        if Path(traj_file).exists():
-            logging.warning(f"Overwriting existing trajectory file: {traj_file}")
-            Path(traj_file).unlink()
-
-        logging.info("Starting structure optimization...")
-
-        if relax_cell:
-            logging.info("Using cell relaxation (ExpCellFilter)...")
-            ecf = ExpCellFilter(atoms)
-            optimizer = BFGS(ecf, trajectory=traj_file)
-            optimizer.run(fmax=force_tolerance, steps=max_iterations)
-        else:
-            optimizer = BFGS(atoms, trajectory=traj_file)
-            optimizer.run(fmax=force_tolerance, steps=max_iterations)
-
-        output_file = f"{base_name}_optimized.cif"
-        write(output_file, atoms)
-        final_energy = float(atoms.get_potential_energy())
-
-        logging.info(
-            f"Optimization completed in {optimizer.nsteps} steps. "
-            f"Final energy: {final_energy:.4f} eV"
-        )
-
-        return {
-            "optimized_structure": Path(output_file),
-            "optimization_traj": Path(traj_file),
-            "final_energy": final_energy,
-            "message": f"Successfully completed in {optimizer.nsteps} steps"
-        }
-
-    except Exception as e:
-        logging.error(f"Optimization failed: {str(e)}", exc_info=True)
-        return {
-            "optimized_structure": Path(""),
-            "optimization_traj": None, 
-            "final_energy": -1.0,
-            "message": f"Optimization failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def calculate_phonon(
-    cif_file: Path,
-    model_path: Path,
-    head: str = "Omat24",
-    supercell_matrix: list[int] = [2, 2, 2],
-    displacement_distance: float = 0.005,
-    temperatures: tuple = (300,),
-    plot_path: str = "phonon_band.png"
-) -> PhononResult:
-    """Calculate phonon properties using a Deep Potential (DP) model.
-
-    Args:
-        cif_file (Path): Path to the input CIF structure file.
-        model_path (Path): Path to the Deep Potential model file.
-            Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
-        head (str, optional): Model head corresponding to the application domain. Options are:
-            - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
-            and molecular fragments in aqueous or biological environments.
-            - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
-            and other extended solid-state systems. (This is the **default** head.)
-            - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
-            and general organic chemistry structures.
-            - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
-            adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
-            - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
-            and energy profiling of organic chemical transformations.
-            Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
-        supercell_matrix (list[int], optional): 2×2×2 matrix for supercell expansion.
-            Defaults to [2, 2, 2].
-        displacement_distance (float, optional): Atomic displacement distance in Ångström.
-            Default is 0.005 Å.
-        temperatures (tuple, optional): Tuple of temperatures (in Kelvin) for thermal property calculations.
-            Default is (300,).
-        plot_path (str, optional): File path to save the phonon band structure plot.
-            Default is "phonon_band.png".
-
-Returns:
-    dict: A dictionary containing phonon properties:
-        - entropy (float): Phonon entropy at given temperature [J/mol·K].
-        - free_energy (float): Helmholtz free energy [kJ/mol].
-        - heat_capacity (float): Heat capacity at constant volume [J/mol·K].
-        - max_frequency_THz (float): Maximum phonon frequency in THz.
-        - max_frequency_K (float): Maximum phonon frequency in Kelvin.
-        - band_plot (str): File path to the generated band structure plot.
-        - band_yaml (str): File path to the band structure data in YAML format.
-        - band_dat (str): File path to the band structure data in DAT format.
-    """
-
-    if supercell_matrix is None or len(supercell_matrix) == 0:
-        supercell_matrix = [2, 2, 2]
-
-    try:
-        # Read input files
-        atoms = io.read(str(cif_file))
-        
-        # Convert to Phonopy structure
-        ph_atoms = PhonopyAtoms(
-            symbols=atoms.get_chemical_symbols(),
-            cell=atoms.get_cell(),
-            scaled_positions=atoms.get_scaled_positions()
-        )
-        
-        # Setup phonon calculation
-        phonon = Phonopy(ph_atoms, supercell_matrix)
-        phonon.generate_displacements(distance=displacement_distance)
-        
-        # Calculate forces using DP model
-        dp_calc = DP(model=str(model_path), head=head)
-        
-        force_sets = []
-        for sc in phonon.supercells_with_displacements:
-            sc_atoms = Atoms(
-                cell=sc.cell,
-                symbols=sc.symbols,
-                scaled_positions=sc.scaled_positions,
-                pbc=True
-            )
-            sc_atoms.calc = dp_calc
-            force = sc_atoms.get_forces()
-            force_sets.append(force - np.mean(force, axis=0))
+        model_type (str): Type of the DP model to train. Supported values: "DPA1", "DPA2", "DPA3".
+        training_path (Path): Path to the training data set.
+        validation_path (Path): Path to the validation data set.
+        init_model (Path, optional): Path to the model used for initialization (Init-model).
+        restart_model (Path, optional): Path to the model used for restarting training.
+        finetune_model (Path, optional): Path to the model used for fine-tuning.
+        output_dir (str): Directory to save the trained model and training logs.
+            Default is "./training_output".
             
-        phonon.forces = force_sets
-        phonon.produce_force_constants()
+    Returns:
+        dict: A dictionary containing:
+            - model_file (Path): Path to the final trained model.
+            - training_log (Path): Path to the training log file.
+            - message (str): Status message indicating success or failure.
+    """    
+    try:
+        # Create output directory
+        model_type = model_type.replace("-","").replace("_","").upper()
+        os.makedirs(output_dir, exist_ok=True)
+        config_file = MODEL_TEMPLATE_DICT[model_type]
+        # Load and normalize config
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+        config = normalize(config)
+        config["training"]["training_data"]["systems"] = _get_dataset(training_path)
+
+        # Setup validation data if available
+        if validation_path is not None:
+            config["training"]["validation_data"]["systems"] = _get_dataset(validation_path)
         
-        # Calculate thermal properties
-        phonon.run_mesh([10, 10, 10])
-        phonon.run_thermal_properties(temperatures=temperatures)
-        thermal = phonon.get_thermal_properties_dict()
+        # Handle model initialization options
+        if init_model:
+            config["training"]["init_model"] = str(init_model)
+        if restart_model:
+            config["training"]["restart_model"] = str(restart_model)
+        if finetune_model:
+            config["training"]["finetune_model"] = str(finetune_model)
         
-        comm_q = get_commensurate_points(phonon.supercell_matrix)
-        freqs = np.array([phonon.get_frequencies(q) for q in comm_q])
-
+        # Write the configuration to input.json
+        input_file = os.path.join(output_dir, "input.json")
+        with open(input_file, 'w') as f:
+            json.dump(config, f, indent=2)
         
-        base = Path(plot_path)
-        base_path = base.with_suffix("")
-        band_yaml_path = base_path.with_name(base_path.name + "_band.yaml")
-        band_dat_path = base_path.with_name(base_path.name + "_band.dat")
-
-        phonon.auto_band_structure(
-            npoints=101,
-            write_yaml=True,
-            filename=str(band_yaml_path)
-        )
-
-        plot = phonon.plot_band_structure()
-        plot.savefig(plot_path, dpi=300)
-
-
+        # Change to output directory and run training with dp command
+        cwd = os.getcwd()
+        os.chdir(output_dir)
+        
+        try:
+            # Run the training using dp command
+            import subprocess
+            result = subprocess.run(["dp", "--pt", "train", "input.json"], 
+                                  capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"Training failed with error: {result.stderr}")
+        finally:
+            os.chdir(cwd)
+        
+        # Find the latest model
+        checkpoint_files = list(Path(output_dir).glob("model.ckpt-*.pt"))
+        if not checkpoint_files:
+            raise FileNotFoundError("No model checkpoint found after training")
+        
+        latest_model = max(checkpoint_files, key=lambda f: f.stat().st_mtime)
+        
         return {
-            "entropy": float(thermal['entropy'][0]),
-            "free_energy": float(thermal['free_energy'][0]),
-            "heat_capacity": float(thermal['heat_capacity'][0]),
-            "max_frequency_THz": float(np.max(freqs)),
-            "max_frequency_K": float(np.max(freqs) * THz_TO_K),
-            "band_plot": Path(plot_path),
-            "band_yaml": band_yaml_path,
-            "band_dat": band_dat_path
+            "model_file": latest_model,
+            "training_log": Path(os.path.join(output_dir, "lcurve.out")),
+            "message": "Training completed successfully"
         }
         
     except Exception as e:
-        logging.error(f"Phonon calculation failed: {str(e)}", exc_info=True)
+        logging.error(f"Training failed: {traceback.format_exc()}", exc_info=True)
         return {
-            "entropy": -1.0,
-            "free_energy": -1.0,
-            "heat_capacity": -1.0,
-            "max_frequency_THz": -1.0,
-            "max_frequency_K": -1.0,
-            "band_plot": Path(""),
-            "band_yaml": Path(""),
-            "band_dat": Path(""),
-            "message": f"Calculation failed: {str(e)}"
+            "model_file": Path(""),
+            "training_log": Path(""),
+            "message": f"Training failed: {traceback.format_exc()}"
         }
 
 
-def _log_progress(atoms, dyn):
-    """Log simulation progress"""
-    epot = atoms.get_potential_energy()
-    ekin = atoms.get_kinetic_energy()
-    temp = ekin / (1.5 * len(atoms) * units.kB)
-    logging.info(f"Step: {dyn.nsteps:6d}, E_pot: {epot:.3f} eV, T: {temp:.2f} K")
+@mcp.tool()
+def infer_dp_model(
+    model_file: Path,
+    coords: list,
+    cells: Optional[list] = None,
+    atom_types: list = [],
+    fparams: Optional[list] = None,
+    aparams: Optional[list] = None,
+    atomic: bool = False,
+    head: Optional[str] = None
+) -> dict:
+    """
+    Perform inference using a trained Deep Potential model.
+    
+    This tool uses a trained Deep Potential model to predict energies, forces, and other properties
+    for given atomic configurations.
+    
+    Args:
+        model_file (Path): Path to the trained Deep Potential model (.pt or .pth file).
+        coords (list): Atomic coordinates. Shape should be [nsystem, nframes, natoms, 3].
+        cells (list, optional): Cell vectors. Shape should be [nsystem, nframes, 9]. For non-PBC, set to None.
+        atom_types (list): Atom types. Shape should be [nsystem, natoms].
+        fparams (list, optional): Frame parameters. Shape should be [nsystem, nframes, dim_fparam].
+        aparams (list, optional): Atomic parameters. Shape should be [nsystem, nframes, natoms, dim_aparam].
+        atomic (bool): Whether to compute atomic contributions. Default is False.
+        head (str, optional): Model head for multi-task models. Required for multi-task models.
+        
+    Returns:
+        dict: A dictionary containing:
+            - energy (list, optional): Predicted energies. Returned if energy is in the model output.
+            - force (list, optional): Predicted forces. Returned if force is in the model output.
+            - virial (list, optional): Predicted virials. Returned if virial is in the model output.
+            - atom_energy (list, optional): Predicted atomic energies. Returned if atomic=True and 
+              atom_energy is in the model output.
+            - atom_virial (list, optional): Predicted atomic virials. Returned if atomic=True and 
+              atom_virial is in the model output.
+            - message (str): Status message.
+    """
+    try:
+        raw_results = {
+            "energies": [],
+            "forces": [],
+            "virials": [],
+        }
+        for idx, coord in enumerate(coords):
+            coord = np.array(coord)
+            cell = np.array(cells[idx]) if cells is not None else None
+            atom_type = np.array(atom_types[idx], dtype=int)
+            n_frames = coord.shape[0]            
+            for idx_frame in range(n_frames):
+                evaluator = DeepEval(
+                    str(model_file),
+                    head=head
+                )
+                
+                # Perform evaluation
+                e, f, v = evaluator.eval(
+                    coords=coord[idx_frame].reshape([1, -1, 3]),
+                    cells=cell[idx_frame].reshape([1, 3, 3]), ## TODO: handel nopbc
+                    atom_types=atom_type.reshape([1, -1]),  ## TODO: handel model type map
+                    # fparam=np.array(fparam) if fparams is not None else None,
+                    # aparam=np.array(aparam) if aparams is not None else None
+                )
+                print(e, f, v)
+                raw_results['energies'].append(e[0])
+                raw_results['forces'].append(f[0])
+                raw_results['virials'].append(v[0])
+                
+        result_dict = {}
+        for key, value in raw_results.items():
+            # Handle None values
+            if value is not None:
+                result_dict[key] = value.tolist()
+            else:
+                result_dict[key] = None
+        
+        result_dict["message"] = "Inference completed successfully"
+        return result_dict
+        
+    except Exception as e:
+        logging.error(f"Inference failed: {str(e)}", exc_info=True)
+        return {
+            "message": f"Inference failed: {str(e)}"
+        }
 
-def _run_md_stage(atoms, stage, save_interval_steps, traj_file, seed, stage_id):
-    """Run a single MD simulation stage"""
-    temperature_K = stage.get('temperature_K', None)
-    pressure = stage.get('pressure', None)
-    mode = stage['mode']
-    runtime_ps = stage['runtime_ps']
-    timestep_ps = stage.get('timestep', 0.0005)  # default: 0.5 fs
-    tau_t_ps = stage.get('tau_t', 0.01)         # default: 10 fs
-    tau_p_ps = stage.get('tau_p', 0.1)          # default: 100 fs
 
-    timestep_fs = timestep_ps * 1000  # convert to fs
-    total_steps = int(runtime_ps * 1000 / timestep_fs)
+@mcp.tool()
+def identify_mixedtype(data_path: Path) -> bool:
+    """
+    Identify if the given dataset is in MixedType format.
+    
+    Args:
+        data_path (Path): Path to the dataset.
+        
+    Returns:
+        bool: True if the dataset is a MixedType, False otherwise.
+    """
+    try:
+        # Check if there are multiple systems by looking for type.raw files in subdirectories
+        type_raw_files = list(data_path.rglob("type.raw"))
+        # A multisystem typically has multiple type.raw files in different subdirectories
+        # or has the specific structure of a MultiSystem
+        if len(type_raw_files) > 1:
+            return True
+        
+        # Also check for mixed type systems which are typically MultiSystems
+        real_atom_types_files = list(data_path.rglob("*/real_atom_types.npy"))
+        if len(real_atom_types_files) > 0:
+            return True
+            
+        # Try to load as MultiSystem to check
+        try:
+            d = dpdata.MultiSystems()
+            d.load_systems_from_file(str(data_path), fmt="deepmd/npy/mixed")
+            return True
+        except:
+            pass
+            
+        return False
+    except Exception as e:
+        logging.error(f"Failed to identify multisystem: {str(e)}", exc_info=True)
+        return False
 
-    # Initialize velocities if first stage with temperature
-    if stage_id == 1 and temperature_K is not None:
-        MaxwellBoltzmannDistribution(atoms, temperature_K=temperature_K, 
-                                rng=np.random.RandomState(seed))
-        Stationary(atoms)
-        ZeroRotation(atoms)
 
-    # Choose ensemble
-    if mode == 'NVT' or mode == 'NVT-NH':
-        # Use NoseHooverChain for NVT by default
-        dyn = NoseHooverChainNVT(
-            atoms,
-            timestep=timestep_fs * units.fs,
-            temperature_K=temperature_K,
-            tdamp=tau_t_ps * 1000 * units.fs
-        )
-    elif mode == 'NVT-Berendsen':
-        dyn = NVTBerendsen(
-            atoms,
-            timestep=timestep_fs * units.fs,
-            temperature_K=temperature_K,
-            taut=tau_t_ps * 1000 * units.fs
-        )
-    elif mode == 'NVT-Andersen':
-        dyn = Andersen(
-            atoms,
-            timestep=timestep_fs * units.fs,
-            temperature_K=temperature_K,
-            friction=1.0 / (tau_t_ps * 1000 * units.fs),
-            rng=np.random.RandomState(seed)
-        )
-    elif mode == 'NVT-Langevin' or mode == 'Langevin':
-        dyn = Langevin(
-            atoms,
-            timestep=timestep_fs * units.fs,
-            temperature_K=temperature_K,
-            friction=1.0 / (tau_t_ps * 1000 * units.fs),
-            rng=np.random.RandomState(seed)
-        )
-    elif mode == 'NPT-aniso' or mode == 'NPT-tri':
-        if mode == 'NPT-aniso':
-            mask = np.eye(3, dtype=bool)
-        elif mode == 'NPT-tri':
-            mask = None
+@mcp.tool()
+def parse_dpdata(data_path: Path, is_mixedtype: bool) -> dict:
+    """
+    Parse dpdata from the given path.
+    
+    Args:
+        data_path (Path): Path to the dataset.
+        is_mixedtype (bool): Whether the dataset is a MixedType dataset.
+        
+    Returns:
+        dict: A dictionary containing:
+            - coords (list): Atomic coordinates.
+            - cells (list): Cell vectors.
+            - atom_types (list): Atom types.
+            - fparams (list): Frame parameters.
+            - aparams (list): Atomic parameters.
+    """
+    try:
+        d = dpdata.MultiSystems()
+        if is_mixedtype:
+            d.load_systems_from_file(str(data_path), fmt="deepmd/npy/mixed")
         else:
-            raise ValueError(f"Unknown NPT mode: {mode}")
+            sub_data = _get_dataset(str(data_path))
+            for sub_d in sub_data:
+                d.append(dpdata.LabeledSystem(sub_d, fmt="deepmd/npy"))
 
-        if pressure is None:
-            raise ValueError("Pressure must be specified for NPT simulations")
-
-        dyn = NPT(
-            atoms,
-            timestep=timestep_fs * units.fs,
-            temperature_K=temperature_K,
-            externalstress=pressure * units.GPa,
-            ttime=tau_t_ps * 1000 * units.fs,
-            pfactor=tau_p_ps * 1000 * units.fs,
-            mask=mask
-        )
-    elif mode == 'NVE':
-        dyn = VelocityVerlet(
-            atoms,
-            timestep=timestep_fs * units.fs
-        )
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
-
-    # Prepare trajectory file
-    os.makedirs(os.path.dirname(traj_file), exist_ok=True)
-    if os.path.exists(traj_file):
-        os.remove(traj_file)
-
-    def _write_frame():
-        """Write current frame to trajectory"""
-        results = atoms.calc.results
-        energy = results.get("energy", atoms.get_potential_energy())
-        forces = results.get("forces", atoms.get_forces())
-        stress = results.get("stress", atoms.get_stress(voigt=False))
-
-        if np.isnan(energy).any() or np.isnan(forces).any() or np.isnan(stress).any():
-            raise ValueError("NaN detected in simulation outputs. Aborting trajectory write.")
-
-        new_atoms = atoms.copy()
-        new_atoms.info["energy"] = energy
-        new_atoms.arrays["force"] = forces
-        new_atoms.info["virial"] = -stress * atoms.get_volume()
-
-        write(traj_file, new_atoms, format="extxyz", append=True)
-
-    # Attach callbacks
-    dyn.attach(_write_frame, interval=save_interval_steps)
-    dyn.attach(lambda: _log_progress(atoms, dyn), interval=100)
-
-    logging.info(f"[Stage {stage_id}] Starting {mode} simulation: T={temperature_K} K"
-                + (f", P={pressure} GPa" if pressure is not None else "")
-                + f", steps={total_steps}, dt={timestep_ps} ps")
-
-    # Run simulation
-    dyn.run(total_steps)
-    logging.info(f"[Stage {stage_id}] Finished simulation. Trajectory saved to: {traj_file}\n")
-
-    return atoms
+        coords, cells, atom_types, fparams, aparams = [], [], [], [], []
+        for k in d:
+            coord = k.data.get("coords").tolist()
+            cell = k.data.get("cells").tolist() if not k.nopbc else None
+            atom_type = k.data.get("atom_types").tolist()
+            fparam = k.data.get("fparam", None)
+            aparam = k.data.get("aparam", None)
+        
+            coords.append(coord)
+            cells.append(cell)
+            atom_types.append(atom_type)
+            fparams.append(fparam)
+            aparams.append(aparam)
+        
+        return {
+            "coords": coords,
+            "cells": cells,
+            "atom_types": atom_types,
+            "fparams": fparams,
+            "aparams": aparams
+        }
+        
+    except Exception as e:
+        logging.error(f"Failed to parse dpdata: {str(e)}", exc_info=True)
+        return {
+            "coords": [],
+            "cells": None,
+            "atom_types": [],
+            "fparams": None,
+            "aparams": None
+        }
 
 
-def _run_md_pipeline(atoms, stages, save_interval_steps=100, traj_prefix='traj', seed=None):
-    """Run multiple MD stages sequentially"""
-    for i, stage in enumerate(stages):
-        mode = stage['mode']
-        T = stage.get('temperature_K', 'NA')
-        P = stage.get('pressure', 'NA')
-
-        tag = f"stage{i+1}_{mode}_{T}K"
-        if P != 'NA':
-            tag += f"_{P}GPa"
-        traj_file = os.path.join("trajs_files", f"{traj_prefix}_{tag}.extxyz")
-
-        atoms = _run_md_stage(
-            atoms=atoms,
-            stage=stage,
-            save_interval_steps=save_interval_steps,
-            traj_file=traj_file,
-            seed=seed,
-            stage_id=i + 1
-        )
-
-    return atoms
+def rmse(predictions, targets):
+    """Calculate root mean square error."""
+    return np.sqrt(((predictions - targets) ** 2).mean())
 
 
 @mcp.tool()
-def run_molecular_dynamics(
-    initial_structure: Path,
-    model_path: Path,
-    stages: List[Dict],
-    save_interval_steps: int = 100,
-    traj_prefix: str = 'traj',
-    seed: Optional[int] = 42,
-    head: str = "Omat24",
-) -> MDResult:
+def evaluate_error(
+    data_path: Path,
+    model_file: Path,
+    is_mixedtype: bool = False,
+    head: Optional[str] = None
+) -> dict:
     """
-    Run a multi-stage molecular dynamics simulation using Deep Potential.
-
-    This tool performs molecular dynamics simulations with different ensembles (NVT, NPT, NVE)
-    in sequence, using the ASE framework with the Deep Potential calculator.
-
+    Evaluate RMSE errors of a model on given data.
+    
     Args:
-        initial_structure (Path): Input atomic structure file (supports .xyz, .cif, etc.)
-        model_path (Path): Path to the Deep Potential model file (.pt or .pb)
-        stages (List[Dict]): List of simulation stages. Each dictionary can contain:
-            - mode (str): Simulation ensemble type. One of:
-                * "NVT" or "NVT-NH"- NVT ensemble (constant Particle Number, Volume, Temperature), with Nosé-Hoover (NH) chain thermostat
-                * "NVT-Berendsen"- NVT ensemble with Berendsen thermostat. For quick thermalization
-                * 'NVT-Andersen- NVT ensemble with Andersen thermostat. For quick thermalization (not rigorous NVT)
-                * "NVT-Langevin" or "Langevin"- Langevin dynamics. For biomolecules or implicit solvent systems.
-                * "NPT-aniso" - constant Number, Pressure (anisotropic), Temperature
-                * "NPT-tri" - constant Number, Pressure (tri-axial), Temperature
-                * "NVE" - constant Number, Volume, Energy (no thermostat/barostat, or microcanonical)
-            - runtime_ps (float): Simulation duration in picoseconds.
-            - temperature_K (float, optional): Temperature in Kelvin (required for NVT/NPT).
-            - pressure (float, optional): Pressure in GPa (required for NPT).
-            - timestep_ps (float, optional): Time step in picoseconds (default: 0.0005 ps = 0.5 fs).
-            - tau_t_ps (float, optional): Temperature coupling time in picoseconds (default: 0.01 ps).
-            - tau_p_ps (float, optional): Pressure coupling time in picoseconds (default: 0.1 ps).
-        save_interval_steps (int): Interval (in MD steps) to save trajectory frames (default: 100).
-        traj_prefix (str): Prefix for trajectory output files (default: 'traj').
-        seed (int, optional): Random seed for initializing velocities (default: 42).
-        head (str, optional): Model head corresponding to the application domain. Options are:
-            - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
-            and molecular fragments in aqueous or biological environments.
-            - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
-            and other extended solid-state systems. (This is the **default** head.)
-            - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
-            and general organic chemistry structures.
-            - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
-            adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
-            - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
-            and energy profiling of organic chemical transformations.
-            Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
-
+        data_path (Path): Path to the dataset.
+        model_file (Path): Path to the trained model.
+        is_mixedtype (bool): Whether the dataset is a MixedType.
+        head (str, optional): Model head for multi-task models.
+        
     Returns:
-        MDResult: A dictionary containing:
-            - final_structure (Path): Final atomic structure after all stages.
-            - trajectory_dir (Path): The path of output directory of trajectory files generated.
-            - log_file (Path): Path to the log file containing simulation output.
-
-    Examples:
-        >>> stages = [
-        ...     {
-        ...         "mode": "NVT",
-        ...         "temperature_K": 300,
-        ...         "runtime_ps": 5,
-        ...         "timestep_ps": 0.0005,
-        ...         "tau_t_ps": 0.01
-        ...     },
-        ...     {
-        ...         "mode": "NPT-aniso",
-        ...         "temperature_K": 300,
-        ...         "pressure": 1.0,
-        ...         "runtime_ps": 5,
-        ...         "timestep_ps": 0.0005,
-        ...         "tau_t_ps": 0.01,
-        ...         "tau_p_ps": 0.1
-        ...     },
-        ...     {
-        ...         "mode": "NVE",
-        ...         "runtime_ps": 5,
-        ...         "timestep_ps": 0.0005
-        ...     }
-        ... ]
-
-        >>> result = run_molecular_dynamics(
-        ...     initial_structure=Path("input.xyz"),
-        ...     model_path=Path("model.pb"),
-        ...     stages=stages,
-        ...     save_interval_steps=50,
-        ...     traj_prefix="cu_relax",
-        ...     seed=42
-        ... )
+        dict: A dictionary containing:
+            - rmse_e (float): RMSE of energies.
+            - rmse_f (float): RMSE of forces.
+            - rmse_v (float): RMSE of virials.
     """
+    try:
+        # TODO: change energy bias
+        # Load data using dpdata
+        data = dpdata.MultiSystems()
+        if is_mixedtype:
+            data.load_systems_from_file(str(data_path), fmt="deepmd/npy/mixed")
+        else:
+            sub_data = _get_dataset(str(data_path))
+            for sub_d in sub_data:
+                data.append(dpdata.LabeledSystem(sub_d, fmt="deepmd/npy"))
 
-    # Create output directories
-    os.makedirs("trajs_files", exist_ok=True)
-    log_file = Path("md_simulation.log")
+        # Initialize model
+        dp = DeepEval(str(model_file), head=head)
+        all_type_map = dp.get_type_map()
+        
+        infer_energies, infer_forces, infer_virials = [], [], []
+        gt_energies, gt_forces, gt_virials = [], [], []
+        
+        # Process systems
+        for system in data:
+            # Get data from system
+            coord = system.data.get("coords")
+            cell = system.data.get("cells") if not system.nopbc else None
+            ori_atype = system.data.get("atom_types")
+            anames = system.data.get("atom_names")
+            
+            # Convert atom types based on model's type map
+            atype = np.array([all_type_map.index(anames[j]) for j in ori_atype])
+            
+            n_frames = coord.shape[0]
+            natoms = atype.shape[0]
+            
+            # Process each frame
+            for i in range(n_frames):
+                # Prepare data for model evaluation
+                cur_coord = coord[i].reshape([1, -1, 3])
+                cur_cell = cell[i].reshape([1, 3, 3]) if cell is not None else None
+                cur_atype = atype.reshape([1, -1])
+                
+                # Evaluate with model
+                e, f, v = dp.eval(
+                    coords=cur_coord,
+                    cells=cur_cell,
+                    atom_types=cur_atype,
+                    infer_batch_size=1
+                )
+                
+                # Process predictions
+                infer_energies.append(e[0] / natoms)
+                infer_forces.extend(f[0].reshape(-1))
+                if v is not None and v[0] is not None:
+                    infer_virials.extend(v[0].reshape(-1) / natoms)
+                
+                # Process ground truth
+                gt_energies.append(system.data["energies"][i] / natoms)
+                gt_forces.extend(system.data["forces"][i].reshape(-1))
+                if "virials" in system.data and system.data["virials"] is not None:
+                    gt_virials.extend(system.data["virials"][i].reshape(-1) / natoms)
+        
+        # Calculate RMSE
+        rmse_e = rmse(np.array(infer_energies), np.array(gt_energies)) if len(infer_energies) > 0 else 0.0
+        rmse_f = rmse(np.array(infer_forces), np.array(gt_forces)) if len(infer_forces) > 0 else 0.0
+        rmse_v = rmse(np.array(infer_virials), np.array(gt_virials)) if len(infer_virials) > 0 and len(gt_virials) > 0 else 0.0
+        
+        return {
+            "rmse_e": float(rmse_e),
+            "rmse_f": float(rmse_f),
+            "rmse_v": float(rmse_v)
+        }
+        
+    except Exception as e:
+        logging.error(f"Error evaluation failed: {str(e)}", exc_info=True)
+        return {
+            "rmse_e": 0.0,
+            "rmse_f": 0.0,
+            "rmse_v": 0.0
+        }
+
+
+@mcp.tool()
+def filter_outliers(
+    data_path: Path,
+    metric: Literal["energies", "forces", "virials"],
+    comparison: Literal["greater", "less"],
+    is_mixedtype: bool,
+    threshold: float,
+    save_dir_name: str = "filetered_data",
+    save_format: Literal["npy", "mixed"] = "npy"
+) -> dict:
+    """
+    Filter dataset based on specified metrics (energies, forces, or virials).
     
-    # Read initial structure
-    atoms = read(initial_structure)
+    This tool filters a labeled system dataset based on a specified metric and threshold.
+    Data points that meet the filtering criteria will be retained in the filtered dataset.
     
-    # Setup calculator
-    model = DP(model=str(model_path), head=head)
-    atoms.calc = model
+    Args:
+        data_path (Path): Path to the dataset in dpdata format.
+        metric (str): The metric to filter on. Supported values: "energies", "forces", "virials".
+        comparison (str): Comparison operation. Supported values: "greater", "less". For forces and virials, the magnitude of the metric is set as the averaged value.
+        is_mixedtype (bool): Whether the dataset is a MixedType.
+        threshold (float): Threshold value for filtering.
+        save_path (str): Path to save the filtered dataset. Defaults to "filetered_data".
+        save_format (str): Format to save the filtered dataset. Supported values: "npy", "mixed". Defaults to "npy".
+        
+    Returns:
+        dict: A dictionary containing:
+            - filtered_data_path (Path): Path to the filtered dataset.
+            - original_count (int): Number of data points in the original dataset.
+            - filtered_count (int): Number of data points in the filtered dataset.
+            - message (str): Status message indicating success or failure.
+    """
+    try:
+        all_filtered_data = dpdata.MultiSystems()
+        if is_mixedtype:
+            raw_data = dpdata.MultiSystems().load_systems_from_file(str(data_path), fmt='deepmd/npy/mixed')
+        else:
+            raw_data = dpdata.MultiSystems().load_systems_from_file(str(data_path), fmt='deepmd/npy')
+        system_count = len(raw_data)
+        
+        if system_count == 0:
+            return {
+                "filtered_data_path": Path(""),
+                "original_count": 0,
+                "filtered_count": 0,
+                "message": "Input dataset is empty"
+            }
+        else:
+            original_count = sum([len(sys) for sys in raw_data])
+        
+        filtered_count = 0
+        for data in raw_data:
+            if metric == "energies":
+                if comparison == "less":
+                    valid_indices = data.data["energies"] < threshold
+                else:  # greater
+                    valid_indices = data.data["energies"] > threshold
+                    
+            elif metric == "forces":
+                # Calculate force magnitudes
+                force_magnitudes = np.linalg.norm(data.data["forces"], axis=2)
+                if comparison == "less":
+                    valid_indices = np.all(force_magnitudes < threshold, axis=1)
+                else:  # greater
+                    valid_indices = np.any(force_magnitudes > threshold, axis=1)
+                    
+            elif metric == "virials":
+                if "virials" not in data.data:
+                    return {
+                        "filtered_data_path": Path(""),
+                        "original_count": original_count,
+                        "filtered_count": 0,
+                        "message": "Virials data not available in the dataset"
+                    }
+                
+                virial_magnitudes = np.linalg.norm(data.data["virials"], axis=2)
+                if comparison == "less":
+                    valid_indices = np.all(virial_magnitudes < threshold, axis=1)
+                else:
+                    valid_indices = np.any(virial_magnitudes > threshold, axis=1)
+            else:
+                return {
+                    "filtered_data_path": Path(""),
+                    "original_count": original_count,
+                    "filtered_count": 0,
+                    "message": f"Unsupported metric: {metric}"
+                }
+            
+            # Apply the filter
+            filtered_data = data[valid_indices]
+            filtered_count += len(filtered_data)
+            all_filtered_data.append(filtered_data)
+            
+        filtered_data_path = Path(save_dir_name)
+        if save_format == "npy":
+            all_filtered_data.to_deepmd_npy(str(filtered_data_path))
+        elif save_format == "mixed":
+            all_filtered_data.to_deepmd_mixed(str(filtered_data_path))
+
+        return {
+            "filtered_data_path": filtered_data_path,
+            "original_count": original_count,
+            "filtered_count": filtered_count,
+            "message": f"Filtering completed successfully. Kept {filtered_count} out of {original_count} data points."
+        }
+        
+    except Exception as e:
+        logging.error(f"Filtering failed: {str(e)}", exc_info=True)
+        return {
+            "filtered_data_path": Path(""),
+            "original_count": 0,
+            "filtered_count": 0,
+            "message": f"Filtering failed: {str(e)}"
+        }
+
+
+@mcp.tool()
+def stat_af(dataset_path: Path) -> dict:
+    """
+    Statistics on atomic numbers in the dataset.
     
-    # Run MD pipeline
-    final_atoms = _run_md_pipeline(
-        atoms=atoms,
-        stages=stages,
-        save_interval_steps=save_interval_steps,
-        traj_prefix=traj_prefix,
-        seed=seed
-    )
+    This tool calculates statistics on atom numbers and frame counts in the datasets.
     
-    # Save final structure
-    final_structure = Path("final_structure.xyz")
-    write(final_structure, final_atoms)
+    Args:
+        dataset_path (Path): Path to the dataset. Can be a directory or a compressed file (zip/tar.gz).
+        
+    Returns:
+        dict: A dictionary containing:
+            - atom_numbs (int): Averaged atom numbers in training dataset.
+            - frame_numbs (int): Total frame count in training dataset.
+    """
+    try:
+        atom_numbs = []
+        frames = []
+                
+        dataset_path_obj = Path(dataset_path)       
+        coord_files = list(dataset_path_obj.rglob("coord.npy"))
+            
+        if not coord_files:
+            return {
+                "atom_numbs": [],
+                "frame_numbs": 0,
+                "message": "No coord.npy files found in dataset"
+            }
+        
+        total_frame_numbs = 0
+        for coord_file in coord_files:
+            coord_data = np.load(coord_file)
+            nbz = coord_data.shape[0]
+            natoms = int(coord_data.shape[1] / 3)
+            frames.append(nbz)
+            
+            for jj in range(nbz):
+                atom_numbs.append(natoms)
+                
+            total_frame_numbs += nbz
+        
+        atom_numbs = np.mean(atom_numbs)
+        frame_numbs = total_frame_numbs
+        
+        return {
+            "atom_numbs": int(atom_numbs),
+            "frame_numbs": int(frame_numbs),
+        }
+        
+    except Exception as e:
+        logging.error(f"stat_af failed: {str(e)}", exc_info=True)
+        return {
+            "atom_numbs": 0,
+            "frame_numbs": 0,
+            "message": f"stat_af failed: {str(e)}"
+        }
+
+
+@mcp.tool()
+def stat_efv(dataset_path: Path) -> dict:
+    """
+    Statistics on energies, forces, and virials in the dataset.
     
-    # Collect trajectory files
-    trajectory_dir = Path("trajs_files")
+    This tool calculates statistics on energies, forces, and virials in the dataset.
     
-    return {
-        "final_structure": final_structure,
-        "trajectory_dir": trajectory_dir,
-        "log_file": log_file
+    Args:
+        dataset_path (Path): Path to the dataset. Can be a directory or a compressed file (zip/tar.gz).
+        
+    Returns:
+        dict: A dictionary containing:
+            - energy_mean (float): Mean energy per atom.
+            - energy_std (float): Standard deviation of energy per atom.
+            - force_mean (float): Mean force component (if available).
+            - force_std (float): Standard deviation of force component (if available).
+            - virial_mean (float): Mean virial component per atom (if available).
+            - virial_std (float): Standard deviation of virial component per atom (if available).
+    """
+    result = {
+        'energy_mean': None,
+        'energy_std': None,
+        'force_mean': None,
+        'force_std': None,
+        'virial_mean': None,
+        'virial_std': None
     }
-
-
-"""
-This elastic calculator has been modified from MatCalc
-https://github.com/materialsvirtuallab/matcalc/blob/main/src/matcalc/_elasticity.py
-https://github.com/materialsvirtuallab/matcalc/blob/main/LICENSE
-BSD 3-Clause License
-Copyright (c) 2023, Materials Virtual Lab
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-1. Redistributions of source code must retain the above copyright notice, this
-list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright notice,
-this list of conditions and the following disclaimer in the documentation
-and/or other materials provided with the distribution.
-3. Neither the name of the copyright holder nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""
-def _get_elastic_tensor_from_strains(
-    strains: np.typing.ArrayLike,
-    stresses: np.typing.ArrayLike,
-    eq_stress: np.typing.ArrayLike = None,
-    tol: float = 1e-7,
-) -> ElasticTensor:
-    """
-    Compute the elastic tensor from given strain and stress data using least-squares
-    fitting.
-    This function calculates the elastic constants from strain-stress relations,
-    using a least-squares fitting procedure for each independent component of stress
-    and strain tensor pairs. An optional equivalent stress array can be supplied.
-    Residuals from the fitting process are accumulated and returned alongside the
-    elastic tensor. The elastic tensor is zeroed according to the given tolerance.
-    """
-
-    strain_states = [tuple(ss) for ss in np.eye(6)]
-    ss_dict = get_strain_state_dict(
-        strains,
-        stresses,
-        eq_stress=eq_stress,
-        add_eq=True if eq_stress is not None else False,
-    )
-    c_ij = np.zeros((6, 6))
-    for ii in range(6):
-        strain = ss_dict[strain_states[ii]]["strains"]
-        stress = ss_dict[strain_states[ii]]["stresses"]
-        for jj in range(6):
-            fit = np.polyfit(strain[:, ii], stress[:, jj], 1, full=True)
-            c_ij[ii, jj] = fit[0][0]
-    elastic_tensor = ElasticTensor.from_voigt(c_ij)
-    return elastic_tensor.zeroed(tol)
-
-
-@mcp.tool()
-def calculate_elastic_constants(
-    cif_file: Path,
-    model_path: Path,
-    head: str = "Omat24",
-    norm_strains: np.typing.ArrayLike = np.linspace(-0.01, 0.01, 4),
-    norm_shear_strains: np.typing.ArrayLike = np.linspace(-0.06, 0.06, 4),
-) -> ElasticResult:
-    """
-    Calculate elastic constants for a fully relaxed crystal structure using a Deep Potential model.
-
-    Args:
-        cif_file (Path): Path to the input CIF file of the fully relaxed structure.
-        model_path (Path): Path to the Deep Potential model file.
-            Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
-        head (str, optional): Model head corresponding to the application domain. Options are:
-            - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
-            and molecular fragments in aqueous or biological environments.
-            - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
-            and other extended solid-state systems. (This is the **default** head.)
-            - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
-            and general organic chemistry structures.
-            - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
-            adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
-            - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
-            and energy profiling of organic chemical transformations.
-            Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
-        norm_strains (ArrayLike): strain values to apply to each normal mode.
-            Default is np.linspace(-0.01, 0.01, 4).
-        norm_shear_strains (ArrayLike): strain values to apply to each shear mode.
-            Default is np.linspace(-0.06, 0.06, 4).
-        
-
-    Returns:
-        dict: A dictionary containing:
-            - bulk_modulus (float): Bulk modulus in GPa.
-            - shear_modulus (float): Shear modulus in GPa.
-            - youngs_modulus (float): Young's modulus in GPa.
-    """
     try:
-        # Read input files
-        relaxed_atoms = read(str(cif_file))
-        model_file = str(model_path)
-        calc = DP(model=model_file, head=head)
+        energies, forces, virials = [], [], []
         
-        structure = AseAtomsAdaptor.get_structure(relaxed_atoms)
+        dataset_path_obj = Path(dataset_path)
 
-        # Create deformed structures
-        deformed_structure_set = DeformedStructureSet(
-            structure,
-            norm_strains,
-            norm_shear_strains,
-        )
-        
-        stresses = []
-        for deformed_structure in deformed_structure_set:
-            atoms = deformed_structure.to_ase_atoms()
-            atoms.calc = calc
-            stresses.append(atoms.get_stress(voigt=False))
+        # Find all relevant files
+        energy_files = list(dataset_path_obj.rglob("energy.npy"))
+        force_files = list(dataset_path_obj.rglob("force.npy"))
+        virial_files = list(dataset_path_obj.rglob("virial.npy"))
 
-        strains = [
-            Strain.from_deformation(deformation)
-            for deformation in deformed_structure_set.deformations
-        ]
+        # Load energies
+        for ef in energy_files:
+            e = np.load(ef)
+            energies.append(e)
 
-        relaxed_atoms.calc = calc
-        eq_stress = relaxed_atoms.get_stress(voigt=False)
-        elastic_tensor = _get_elastic_tensor_from_strains(
-            strains=strains,
-            stresses=stresses,
-            eq_stress=eq_stress,
-        )
-        
-        # Calculate elastic constants
-        bulk_modulus = elastic_tensor.k_vrh * EV_A3_TO_GPA
-        shear_modulus = elastic_tensor.g_vrh * EV_A3_TO_GPA
-        youngs_modulus = 9 * bulk_modulus * shear_modulus / (3 * bulk_modulus + shear_modulus)
-        
-        return {
-            "bulk_modulus": float(bulk_modulus),
-            "shear_modulus": float(shear_modulus),
-            "youngs_modulus": float(youngs_modulus)
-        }
-    except Exception as e:
-        logging.error(f"Elastic calculation failed: {str(e)}", exc_info=True)
-        return {
-            "bulk_modulus": None,
-            "shear_modulus": None,
-            "youngs_modulus": None
-        }
+        # Load forces
+        for ff in force_files:
+            f = np.load(ff)
+            forces.append(f)
 
+        # Load virials
+        for vf in virial_files:
+            v = np.load(vf)
+            virials.append(v)
 
-@mcp.tool()
-def run_neb(
-    initial_structure: Path,
-    final_structure: Path,
-    model_path: Path,
-    head: str = "Omat24",
-    n_images: int = 5,
-    max_force: float = 0.05,
-    max_steps: int = 500
-) -> NEBResult:
-    """
-    Run Nudged Elastic Band (NEB) calculation to find minimum energy path between two fully relaxed structures.
+        result = {}
 
-    Args:
-        initial_structure (Path): Path to the initial structure file.
-        final_structure (Path): Path to the final structure file.
-        model_path (Path): Path to the Deep Potential model file.
-        head (str, optional): Model head corresponding to the application domain. Options are:
-            - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
-            and molecular fragments in aqueous or biological environments.
-            - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
-            and other extended solid-state systems. (This is the **default** head.)
-            - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
-            and general organic chemistry structures.
-            - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
-            adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
-            - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
-            and energy profiling of organic chemical transformations.
-            Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
-        n_images (int): Number of images inserted between the initial and final structure in the NEB chain. Default is 5.
-        max_force (float): Maximum force tolerance for convergence in eV/Å. Default is 0.05 eV/Å.
-        max_steps (int): Maximum number of optimization steps. Default is 500.
+        if energies:
+            energies_concat = np.concatenate(energies, axis=0)
+            natoms = energies_concat.shape[1] if energies_concat.ndim == 2 else 1
+            energy_per_atom = energies_concat / natoms
+            result['energy_mean'] = float(np.mean(energy_per_atom))
+            result['energy_std'] = float(np.std(energy_per_atom))
+        else:
+            result['energy_mean'] = None
+            result['energy_std'] = None
 
-    Returns:
-        dict: A dictionary containing:
-            - neb_energy (tuple): Energy barrier in eV.
-            - neb_traj (Path): Path to the NEB band as a PDF file.
-    """
-    try:
-        model_file = str(model_path)
-        calc = DP(model=model_file, head=head)
+        if forces:
+            force_components_list = []
+            for f in forces:
+                f_reshaped = f.reshape(-1, 3)  # Flatten each to (N, 3)
+                force_components_list.append(f_reshaped)
 
-        # Read structures
-        initial_atoms = read(str(initial_structure))
-        final_atoms = read(str(final_structure))
+            force_components = np.concatenate(force_components_list, axis=0)  # Now all shapes are (N, 3)
+            result['force_mean'] = float(np.mean(force_components))
+            result['force_std'] = float(np.std(force_components))
+        else:
+            result['force_mean'] = None
+            result['force_std'] = None
 
-        images = [initial_atoms]
-        images += [initial_atoms.copy() for i in range(n_images)]
-        images += [final_atoms]
-        for image in images:
-            image.calc = calc
+        if virials:
+            virials_concat = np.concatenate(virials, axis=0)
+            natoms = virials_concat.shape[1] if virials_concat.ndim == 2 else 1
+            virial_per_atom = virials_concat / natoms
+            result['virial_mean'] = float(np.mean(virial_per_atom))
+            result['virial_std'] = float(np.std(virial_per_atom))
+        else:
+            result['virial_mean'] = None
+            result['virial_std'] = None
 
-        # Setup NEB
-        neb = NEB(images, climb=False, allow_shared_calculator=True)
-        neb.interpolate(method='idpp')
-
-        opt = BFGS(neb)
-        conv = opt.run(fmax=0.45, steps=200)
-        # Turn on climbing image if initial optimization converged
-        if conv:
-            neb.climb = True
-            conv = opt.run(fmax=max_force, steps=max_steps)
-        neb_tool = NEBTools(neb.images)
-        energy_barrier = neb_tool.get_barrier()
-        output_label = "neb_band"
-        neb_tool.plot_bands(label=output_label)
-        return {
-            "neb_energy": energy_barrier,
-            "neb_traj": Path(f"{output_label}.pdf")
-        }
-
-    except Exception as e:
-        logging.error(f"NEB calculation failed: {str(e)}", exc_info=True)
-        return {
-            "neb_energy": None,
-            "neb_traj": Path("")
-        }
+        return result
     
+    except Exception as e:
+        logging.error(f"stat_efv failed: {str(e)}", exc_info=True)
+        raise
+
+
+@mcp.tool()
+def downsample_dataset(
+    data_path: Path,
+    is_mixedtype: bool,
+    ds_num: int,
+    save_dir_name: str = "downsampled_data",
+    save_format: Literal["npy", "mixed"] = "npy"
+) -> dict:
+    """
+    Downsample a dataset using random selection.
+    
+    This tool downsamples a dataset by randomly selecting a specified number of frames
+    from the input dataset and saving them to the output path.
+    
+    Args:
+        data_path (Path): Path to the input dataset.
+        is_mixedtype (bool): Whether the dataset is a MixedType.
+        ds_num (int): Number of frames to select in the downsampled dataset.
+        save_dir_name (str): Output dataset name to save the downsampled dataset.
+            Defaults to "downsampled_data".
+        save_format (str): Format to save the downsampled dataset. Supported values: 
+            "npy", "mixed". Defaults to "npy".
+        
+    Returns:
+        dict: A dictionary containing:
+            - output_path (Path): Path to the downsampled dataset.
+            - original_count (int): Number of data points in the original dataset.
+            - downsampled_count (int): Number of data points in the downsampled dataset.
+            - message (str): Status message indicating success or failure.
+    """
+    try:
+        # Load dataset
+        if is_mixedtype:
+            dd = dpdata.MultiSystems().load_systems_from_file(str(data_path), fmt='deepmd/npy/mixed')
+        else:
+            dd = dpdata.MultiSystems().load_systems_from_file(str(data_path), fmt='deepmd/npy')
+        
+        total_frames = dd.get_nframes()
+        print(f"Total frames: {total_frames}")
+        
+        if total_frames == 0:
+            return {
+                "output_path": Path(""),
+                "original_count": 0,
+                "downsampled_count": 0,
+                "message": "Input dataset is empty"
+            }
+
+        # 1. Build global indices for all frames (system_id, local_frame_id)
+        frame_indices = []
+        for sys_id, sub_d in enumerate(dd):
+            num_frames_in_sys = sub_d.get_nframes()
+            for frame_id in range(num_frames_in_sys):
+                frame_indices.append((sys_id, frame_id))
+        
+        print(f"Total collected frame indices: {len(frame_indices)}")
+
+        # Check if ds_num is valid
+        if ds_num > len(frame_indices):
+            return {
+                "output_path": Path(""),
+                "original_count": total_frames,
+                "downsampled_count": 0,
+                "message": f"Error: Requested {ds_num} frames but only {len(frame_indices)} frames available"
+            }
+
+        # 2. Randomly sample ds_num frames without replacement
+        selected_indices = np.random.choice(len(frame_indices), ds_num, replace=False)
+        selected_indices = [frame_indices[i] for i in selected_indices]
+
+        # 3. Map selected_indices back to system structure
+        system_frame_map = {}
+        for sys_id, frame_id in selected_indices:
+            if sys_id not in system_frame_map:
+                system_frame_map[sys_id] = []
+            system_frame_map[sys_id].append(frame_id)
+        
+        # 4. Rebuild MultiSystems
+        downsample_ms = dpdata.MultiSystems()
+        for sys_id, frame_ids in system_frame_map.items():
+            sub_d = dd[sys_id]
+            frame_ids = np.array(frame_ids)
+            downsample_ms.append(sub_d.sub_system(frame_ids))
+        
+        output_path = Path(save_dir_name)
+        if save_format == "npy":
+            downsample_ms.to_deepmd_npy(str(output_path))
+        elif save_format == "mixed":
+            downsample_ms.to_deepmd_mixed(str(output_path))
+                
+        return {
+            "output_path": output_path,
+            "original_count": total_frames,
+            "downsampled_count": ds_num,
+            "message": f"Successfully downsampled dataset from {total_frames} to {ds_num} frames"
+        }
+    except Exception as e:
+        logging.error(f"Downsampling failed: {str(e)}", exc_info=True)
+        return {
+            "output_path": Path(""),
+            "original_count": 0,
+            "downsampled_count": 0,
+            "message": f"Error during downsampling: {str(e)}"
+        }
+
+
+# @mcp.tool()
+# def convert_dataset_fomat():
+#     pass
+
+
+
 if __name__ == "__main__":
     logging.info("Starting Unified MCP Server with all tools...")
     mcp.run(transport="sse")
