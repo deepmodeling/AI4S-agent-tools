@@ -1,6 +1,0 @@
-{
-    "name": "DPComboServer",
-    "description": "A Server for DP model training/finetuning/inference and dataset manipulation.",
-    "author": "@SchrodingersCattt",
-    "category": "materials"
-}
