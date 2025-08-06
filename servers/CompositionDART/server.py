@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Literal, Optional, Tuple, TypedDict, List, Dict, Union
 import sys
 import argparse
+import zipfile
+import tarfile
 
+from deepmd.pt.infer.deep_eval import DeepProperty
 from dp.agent.server import CalculationMCPServer
 
 from ga import GeneticAlgorithm
@@ -38,7 +41,6 @@ args = parse_args()
 mcp = CalculationMCPServer("DPACalculatorServer", host=args.host, port=args.port)
 
 
-
 class DARTResult(TypedDict):
     """Result of elastic constant calculation"""
     best_individual: List
@@ -52,14 +54,31 @@ init_population_data = [
     [0.635, 0.3, 0.025, 0.0, 0.04, 0.0],
     [0.635, 0.305, 0.06, 0.0, 0.0, 0.0]
 ]
+
+
 @mcp.tool()
-def run_ga(output, elements, init_mode, population_size, selection_mode,
-           constraints, get_density_mode, a, b, c, d, crossover_rate, mutation_rate, init_population):
+def run_ga(
+    output: str,
+    elements: List[str],
+    init_mode: str,
+    population_size: int,
+    selection_mode: str,
+    constraints: Dict[str, str],
+    get_density_mode: str,
+    a: float,
+    b: float,
+    c: float,
+    d: float,
+    crossover_rate: float,
+    mutation_rate: float,
+    init_population: List[List[float]],
+    tec_model_path: Path = None
+) -> DARTResult:
     """
     Run genetic algorithm for composition optimization of materials.
 
     This tool uses a genetic algorithm to optimize material compositions based on 
-    thermoelectric properties and density predictions using deep learning models.
+    thermal expansion coefficient properties and density predictions using deep learning models.
     The algorithm generates structures based on provided compositions, evaluates their
     properties using pre-trained deep learning models, and evolves the population
     to find compositions with optimal target properties.
@@ -99,12 +118,12 @@ def run_ga(output, elements, init_mode, population_size, selection_mode,
             - "relax": Calculate density from structure relaxation (requires calculator)
             - "predict" or "pred": Use machine learning model to predict density
         
-        a (float): Weight coefficient for the mean of thermoelectric properties in the 
-            target function. Controls how much the mean thermoelectric property contributes
+        a (float): Weight coefficient for the mean of thermal expansion coefficient properties in the 
+            target function. Controls how much the mean thermal expansion coefficient property contributes
             to the fitness score. Value typically between 0.0 and 1.0.
         
-        b (float): Weight coefficient for the standard deviation of thermoelectric properties 
-            in the target function. Controls how much the variation in thermoelectric properties 
+        b (float): Weight coefficient for the standard deviation of thermal expansion coefficient properties 
+            in the target function. Controls how much the variation in thermal expansion coefficient properties 
             contributes to the fitness score. Value typically between 0.0 and 1.0.
         
         c (float): Weight coefficient for the mean of density properties in the target function.
@@ -128,6 +147,10 @@ def run_ga(output, elements, init_mode, population_size, selection_mode,
             Each composition should sum to 1.0. Used when init_mode is not "random".
             If provided compositions have different lengths than the elements list, they
             will be padded with zeros or truncated to match.
+            
+        tec_model_path (str): Path to the directory containing thermal expansion coefficient models or 
+            a compressed file (zip/tar.gz) containing the models. ALL .pt and .pth files in this 
+            directory or archive will be loaded as thermal expansion coefficient models.
 
     Returns:
         dict with best_individual (list): The optimized composition with the highest fitness score.
@@ -140,8 +163,28 @@ def run_ga(output, elements, init_mode, population_size, selection_mode,
     logging.info("Elements: %s", elements)
     logging.info(f"Constraints: {constraints}")
 
+    # Handle compressed file input for tec_model_path
+    if tec_model_path and tec_model_path.is_file():
+        # Check if it's a compressed file
+        if zipfile.is_zipfile(tec_model_path) or tarfile.is_tarfile(tec_model_path):
+            # Create extraction directory
+            extract_dir = tec_model_path.with_suffix('').with_suffix('') if tec_model_path.suffix in ['.zip', '.tar', '.gz', '.tgz'] else tec_model_path.with_name(tec_model_path.name + '_extracted')
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            # Extract the archive
+            if zipfile.is_zipfile(tec_model_path):
+                with zipfile.ZipFile(tec_model_path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_dir)
+            elif tarfile.is_tarfile(tec_model_path):
+                with tarfile.open(tec_model_path, 'r:*') as tar_ref:
+                    tar_ref.extractall(extract_dir)
+            
+            # Update tec_model_path to point to the extracted directory
+            tec_model_path = extract_dir
+            logging.info(f"Extracted models from archive to: {extract_dir}")
+
     # Load tec_models here and pass to GeneticAlgorithm
-    tec_model_files = glob.glob('models/tec*.pt')
+    tec_model_files = list(tec_model_path.glob("*.pt")) + list(tec_model_path.glob("*.pth"))
     tec_models = [DeepProperty(model_file) for model_file in tec_model_files]
     logging.info(f"Loaded {len(tec_models)} tec models")
 
