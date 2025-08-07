@@ -17,7 +17,7 @@ dependencies = [
     "tensorflow==2.19.0",
     "deepmd-kit==3.1.0",  
     "numpy==1.26.4",
-    "dpdata",
+    "dpdata==0.2.25",
     "phonopy",
     "pymatgen",
     "spglib",
