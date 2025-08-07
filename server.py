@@ -45,8 +45,8 @@ OPTIMIZERS = {
 }
 
 
-atomic_mass_file = "/mcp_server/AI4S-agent-tools/constant/atomic_mass.json"
-density_file = "/mcp_server/AI4S-agent-tools/constant/densities.json"
+atomic_mass_file = "/mcp_server/comp-dart-gitlab/constant/atomic_mass.json"
+density_file = "/mcp_server/comp-dart-gitlab/constant/densities.json"
 with open(density_file, 'r') as f:
     densities_dict = json.load(f)
 with open(atomic_mass_file, 'r') as atoms_mass_file:
@@ -289,13 +289,13 @@ def sigmoid(x):
 
 def mk_template_supercell(packing: str):
     if "fcc" in packing:
-        s = Structure.from_file("/mcp_server/AI4S-agent-tools/struct_template/fcc-Ni_mp-23_conventional_standard.cif")
+        s = Structure.from_file("/mcp_server/comp-dart-gitlab/struct_template/fcc-Ni_mp-23_conventional_standard.cif")
         return s.make_supercell([5,5,5])
     elif "bcc" in packing:
-        s = Structure.from_file("/mcp_server/AI4S-agent-tools/struct_template/bcc-Fe_mp-13_conventional_standard.cif")
+        s = Structure.from_file("/mcp_server/comp-dart-gitlab/struct_template/bcc-Fe_mp-13_conventional_standard.cif")
         return s.make_supercell([6,6,6])
     elif "hcp" in packing:
-        s = Structure.from_file("/mcp_server/AI4S-agent-tools/struct_template/hcp-Co_mp-54_conventional_standard.cif")
+        s = Structure.from_file("/mcp_server/comp-dart-gitlab/struct_template/hcp-Co_mp-54_conventional_standard.cif")
         return s.make_supercell([6,6,6])
     else:
         raise ValueError(f"{packing} not supported")
@@ -473,7 +473,14 @@ def target(
             ----\n
             """)
 
-    return target
+    # Return detailed results
+    return {
+        "target": target,
+        "pred_tec_mean": norm2orig(pred_tec_mean, mean=9.76186694677871, std=4.3042156360248125),
+        "pred_tec_std": np.std([norm2orig(tec, mean=9.76186694677871, std=4.3042156360248125) for tec in pred_tec]),
+        "pred_density_mean": norm2orig(pred_density_mean, mean=8331.903892865434, std=182.21803336559455),
+        "pred_density_std": np.std([norm2orig(den, mean=8331.903892865434, std=182.21803336559455) for den in pred_density])
+    }
 
 
 
@@ -686,10 +693,12 @@ class GeneticAlgorithm:
         return best_individual_molar, best_score
 
 
-
-
 class DARTResult(TypedDict):
     best_individual: List
+    pred_tec_mean: float
+    pred_tec_std: float
+    pred_density_mean: float
+    pred_density_std: float
 
 
 @mcp.tool()
@@ -708,7 +717,8 @@ def run_ga(
     crossover_rate: float,
     mutation_rate: float,
     init_population: Optional[List[List[float]]] = None,
-    tec_model_path: Path = None
+    tec_model_path: Path = None,
+    generations: int = 10
 ) -> DARTResult:
     """
     Run genetic algorithm for composition optimization of materials.
@@ -789,11 +799,18 @@ def run_ga(
         tec_model_path (str): Path to the directory containing thermal expansion coefficient models or 
             a compressed file (zip/tar.gz) containing the models. ALL .pt and .pth files in this 
             directory or archive will be loaded as thermal expansion coefficient models.
+        
+        generations (int): Number of generations for the genetic algorithm to evolve. 
+            Defaults to 10. More generations may lead to better optimization but take longer.
 
     Returns:
         dict with best_individual (list): The optimized composition with the highest fitness score.
             This represents the best found composition in mole fractions, corresponding to
             the elements list provided as input.
+        dict with pred_tec_mean (float): Predicted mean TEC value
+        dict with pred_tec_std (float): Predicted TEC standard deviation
+        dict with pred_density_mean (float): Predicted mean density value
+        dict with pred_density_std (float): Predicted density standard deviation
     """
 
     logging.basicConfig(filename=output, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -836,7 +853,7 @@ def run_ga(
     ga = GeneticAlgorithm(
         elements=elements,
         population_size=population_size,
-        generations=8000,
+        generations=generations,
         crossover_rate=crossover_rate,
         mutation_rate=mutation_rate,
         selection_mode=selection_mode,
@@ -848,13 +865,30 @@ def run_ga(
 
     best_individual, best_score = ga.evolve()
 
+    # Get detailed results for the best individual
+    detailed_results = target(
+        elements, 
+        best_individual, 
+        a=a, b=b, c=c, d=d,
+        finalize=True,
+        get_density_mode=get_density_mode,
+        tec_models=tec_models
+    )
+    
     logging.info(f"Best Individual: {best_individual}, Best Score: {best_score}")
+    logging.info(f"Detailed results: {detailed_results}")
     print("Best Composition:", best_individual)
     print("Best Score:", best_score)
+    print("Detailed Results:", detailed_results)
     
     return {
-        "best_individual": best_individual
+        "best_individual": best_individual,
+        "pred_tec_mean": detailed_results["pred_tec_mean"],
+        "pred_tec_std": detailed_results["pred_tec_std"], 
+        "pred_density_mean": detailed_results["pred_density_mean"],
+        "pred_density_std": detailed_results["pred_density_std"]
     }
+
 
     
 if __name__ == "__main__":
