@@ -703,22 +703,22 @@ class DARTResult(TypedDict):
 
 @mcp.tool()
 def run_ga(
-    output: str,
     elements: List[str],
     init_mode: str,
     population_size: int,
     selection_mode: str,
-    constraints: Dict[str, str],
-    get_density_mode: str,
-    a: float,
-    b: float,
-    c: float,
-    d: float,
-    crossover_rate: float,
-    mutation_rate: float,
+    constraints: Optional[Dict[str, str]],
+    get_density_mode: str = "weighted_avg",
+    a: float = 0.6,
+    b: float = 0.2,
+    c: float = 0.6,
+    d: float = 0,
+    crossover_rate: float = 0.8,
+    mutation_rate: float = 0.3,
     init_population: Optional[List[List[float]]] = None,
     tec_model_path: Path = None,
-    generations: int = 10
+    generations: int = 10,
+    output: str = "ga_output.log",
 ) -> DARTResult:
     """
     Run genetic algorithm for composition optimization of materials.
@@ -729,11 +729,7 @@ def run_ga(
     properties using pre-trained deep learning models, and evolves the population
     to find compositions with optimal target properties.
 
-    Args:
-        output (str): Path to the log file where the execution details will be recorded.
-            All execution information, including generation progress and final results,
-            will be logged to this file.
-        
+    Args:        
         elements (list): List of element symbols (e.g., ['Fe', 'Ni', 'Co']) to be considered 
             in the composition space. The order of elements determines the order of composition
             values in other parameters. For example, if elements=['Fe', 'Ni'], compositions
@@ -759,7 +755,7 @@ def run_ga(
             Supported operators: '<', '>', '='
             Constraints are applied during initialization, crossover, and mutation operations.
         
-        get_density_mode (str): Method for calculating density. Options are:
+        get_density_mode (str): Method for calculating density. Default: weighted_avg. Options are:
             - "weighted_avg": Use weighted average based on elemental densities from database
             - "relax": Calculate density from structure relaxation (requires calculator)
             - "predict" or "pred": Use machine learning model to predict density
@@ -802,6 +798,10 @@ def run_ga(
         
         generations (int): Number of generations for the genetic algorithm to evolve. 
             Defaults to 10. More generations may lead to better optimization but take longer.
+
+        output (str): Path to the log file where the execution details will be recorded.
+            All execution information, including generation progress and final results,
+            will be logged to this file.
 
     Returns:
         dict with best_individual (list): The optimized composition with the highest fitness score.
