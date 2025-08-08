@@ -441,7 +441,7 @@ def target(
             density += c * densities_dict[e]
         pred_density = [z_core(density, mean= 8331.903892865434, std=182.21803336559455)]
     else:
-        raise ValueError(f"{get_density_mode} not supported, choose between relax, predict or pred")
+        raise ValueError(f"{get_density_mode} not supported, choose between relax, predict or weighted_avg")
     pred_density_mean = np.mean(pred_density)
     pred_density_std = np.std(pred_density)
     target = a * (-1* pred_tec_mean) + b * pred_tec_std + c * (-1* pred_density_mean) + d * pred_density_std
