@@ -596,10 +596,10 @@ class GeneticAlgorithm:
             molar_comp = apply_constraints(comp, self.elements, self.constraints)
             return target(self.elements, molar_comp, generation=generation,
                          a=self.a, b=self.b, c=self.c, d=self.d,
-                         get_density_mode=self.get_density_mode, tec_models=self.tec_models)
+                         get_density_mode=self.get_density_mode, tec_models=self.tec_models).get("target", float('inf'))
         return target(self.elements, comp, generation=generation,
                      a=self.a, b=self.b, c=self.c, d=self.d,
-                     get_density_mode=self.get_density_mode, tec_models=self.tec_models)
+                     get_density_mode=self.get_density_mode, tec_models=self.tec_models).get("target", float('inf'))
 
     def select_parents(self):
         logging.info("Selecting parents using mode: %s", self.selection_mode)
