@@ -617,10 +617,13 @@ class GeneticAlgorithm:
         logging.info(f"Fitness scores: {fitness_scores}")
         probabilities = sigmoid(fitness_scores)
         probabilities = np.clip(probabilities, a_min=0, a_max=1)
-        probabilities = probabilities / np.sum(probabilities)
-        logging.info(f"Selection probabilities: {probabilities}")
-        indices = np.arange(self.population_size)
-        selected_indices = np.random.choice(indices, size=self.population_size, p=probabilities)
+        # Ensure probabilities sum to 1 and handle any size mismatches
+        if len(probabilities) != len(self.population):
+            probabilities = np.ones(len(self.population)) / len(self.population)
+        probabilities = probabilities / (np.sum(probabilities) + 1e-10)  # Add small epsilon to prevent division by zero
+        # Ensure we have the right size
+        indices = np.arange(len(self.population))
+        selected_indices = np.random.choice(indices, size=len(self.population), p=probabilities)
         parents = [self.population[i] for i in selected_indices]
         return parents
 
