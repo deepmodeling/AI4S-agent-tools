@@ -3,7 +3,6 @@ name = "dpa"
 version = "0.1.0"
 description = "Deep Potential Agent for atomistic simulation"
 readme = "README.md"
-requires-python = ">=3.10,<3.12"
 
 dependencies = [
     "requests>=2.32.3",
@@ -13,7 +12,7 @@ dependencies = [
     "seekpath>=2.0.1",
     "torchaudio",
     "torchvision",
-    "tensorflow==2.15.0",
+    "tensorflow==2.19.0",
     "deepmd-kit==3.1.0",  
     "numpy==1.26.4",
     "dpdata",
