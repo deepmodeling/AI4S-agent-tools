@@ -289,25 +289,9 @@ def identify_mixedtype(data_path: Path) -> bool:
         bool: True if the dataset is a MixedType, False otherwise.
     """
     try:
-        # Check if there are multiple systems by looking for type.raw files in subdirectories
-        type_raw_files = list(data_path.rglob("type.raw"))
-        # A multisystem typically has multiple type.raw files in different subdirectories
-        # or has the specific structure of a MultiSystem
-        if len(type_raw_files) > 1:
-            return True
-        
-        # Also check for mixed type systems which are typically MultiSystems
         real_atom_types_files = list(data_path.rglob("*/real_atom_types.npy"))
         if len(real_atom_types_files) > 0:
-            return True
-            
-        # Try to load as MultiSystem to check
-        try:
-            d = dpdata.MultiSystems()
-            d.load_systems_from_file(str(data_path), fmt="deepmd/npy/mixed")
-            return True
-        except:
-            pass
+            return True       
             
         return False
     except Exception as e:
