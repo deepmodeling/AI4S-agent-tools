@@ -30,7 +30,7 @@
         "StructureGenerateServer"
       ],
       "collections_count": 1,
-      "tools_count": 9,
+      "tools_count": 10,
       "categories": [
         "materials"
       ]
@@ -153,5 +153,5 @@
   ],
   "total_contributors": 13,
   "total_collections": 18,
-  "total_tools": 72
+  "total_tools": 73
 }

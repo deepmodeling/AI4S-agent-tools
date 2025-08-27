@@ -89,19 +89,19 @@
       "start_command": "# SSE mode\ncd servers/ABACUS-tools && python server.py --port <PORT>\n# stdio mode\ncd servers/ABACUS-tools && MCP_TRANSPORT=stdio python server.py",
       "install_command": "cd servers/ABACUS-tools && uv sync",
       "tools": [
-        "abacus_cal_band",
-        "abacus_collect_data",
-        "abacus_dos_run",
         "generate_deeptb_config",
-        "run_abacus_onejob",
-        "abacus_prepare",
-        "abacus_badercharge_run",
-        "abacus_prepare_inputs_from_relax_results",
-        "generate_bulk_structure",
         "abacus_modify_input",
+        "generate_bulk_structure",
         "abacus_cal_elastic",
         "abacus_do_relax",
-        "abacus_modify_stru"
+        "abacus_modify_stru",
+        "abacus_prepare_inputs_from_relax_results",
+        "abacus_cal_band",
+        "abacus_dos_run",
+        "abacus_prepare",
+        "abacus_collect_data",
+        "abacus_badercharge_run",
+        "run_abacus_onejob"
       ]
     },
     {
@@ -118,8 +118,8 @@
       "install_command": "cd servers/catalysis && uv sync",
       "tools": [
         "cal_surface_energy",
-        "cal_ads_energy",
-        "cal_vacancy_formation_energy"
+        "cal_vacancy_formation_energy",
+        "cal_ads_energy"
       ]
     },
     {
@@ -184,17 +184,17 @@
       "start_command": "# SSE mode\ncd servers/DPACalculator && python server.py --port <PORT>\n# stdio mode\ncd servers/DPACalculator && MCP_TRANSPORT=stdio python server.py",
       "install_command": "cd servers/DPACalculator && uv sync",
       "tools": [
-        "optimize_crystal_structure",
-        "build_surface_adsorbate",
-        "run_neb",
-        "build_surface_interface",
-        "build_molecule_structure",
         "calculate_phonon",
-        "build_surface_slab",
+        "optimize_crystal_structure",
         "run_molecular_dynamics",
-        "calculate_elastic_constants",
+        "run_neb",
         "build_bulk_structure",
-        "make_supercell_structure"
+        "build_surface_interface",
+        "build_surface_slab",
+        "build_molecule_structure",
+        "make_supercell_structure",
+        "build_surface_adsorbate",
+        "calculate_elastic_constants"
       ]
     },
     {
@@ -210,15 +210,15 @@
       "start_command": "# SSE mode\ncd servers/DPCombo && python server.py --port <PORT>\n# stdio mode\ncd servers/DPCombo && MCP_TRANSPORT=stdio python server.py",
       "install_command": "cd servers/DPCombo && uv sync",
       "tools": [
-        "parse_dpdata",
-        "filter_outliers",
         "stat_efv",
-        "evaluate_error",
-        "downsample_dataset",
         "identify_mixedtype",
-        "infer_dp_model",
+        "downsample_dataset",
         "train_dp_model",
-        "stat_af"
+        "parse_dpdata",
+        "stat_af",
+        "infer_dp_model",
+        "evaluate_error",
+        "filter_outliers"
       ]
     },
     {
@@ -227,8 +227,8 @@
       "author": "@Junshang Zhang",
       "category": "research",
       "tools": [
-        "HEA_data_extract",
-        "search_paper"
+        "search_paper",
+        "HEA_data_extract"
       ],
       "path": "servers/HEA_paper_extract",
       "transport": [
@@ -310,9 +310,9 @@
       "author": "Haoming Yan",
       "category": "data",
       "tools": [
+        "plot_solar_cell_structure_vs_time",
         "plot_structure_count_vs_time",
-        "plot_pce_vs_time_from_excel",
-        "plot_solar_cell_structure_vs_time"
+        "plot_pce_vs_time_from_excel"
       ],
       "path": "servers/perovskite_literature_plot",
       "transport": [
@@ -361,15 +361,16 @@
       "author": "@A-LOST-WAPITI",
       "category": "materials",
       "tools": [
-        "build_surface_adsorbate",
-        "build_surface_interface",
-        "build_molecule_structure",
-        "add_cell_for_molecules",
-        "generate_crystalformer_structures",
         "generate_calypso_structures",
+        "build_bulk_structure_by_template",
+        "build_surface_interface",
         "build_surface_slab",
-        "build_bulk_structure",
-        "make_supercell_structure"
+        "build_bulk_structure_by_wyckoff",
+        "generate_crystalformer_structures",
+        "build_molecule_structure",
+        "make_supercell_structure",
+        "build_surface_adsorbate",
+        "add_cell_for_molecules"
       ],
       "path": "servers/structure_generate",
       "transport": [
@@ -392,9 +393,9 @@
       "start_command": "See README for details",
       "install_command": "Contact @liuyuxiang92 for access",
       "tools": [
+        "calculate_enthalpy",
         "generate_crystalformer_structures",
         "predict_superconductor_Tc",
-        "calculate_enthalpy",
         "generate_calypso_structure"
       ]
     },
@@ -411,11 +412,11 @@
       "start_command": "# SSE mode\ncd servers/thermoelectric && python server.py --port <PORT>\n# stdio mode\ncd servers/thermoelectric && MCP_TRANSPORT=stdio python server.py",
       "install_command": "cd servers/thermoelectric && uv sync",
       "tools": [
-        "generate_crystalformer_structures",
-        "calculate_enthalpy",
-        "generate_calypso_structures",
         "predict_thermoelectric_properties",
-        "screen_thermoelectric_candidate"
+        "generate_calypso_structures",
+        "screen_thermoelectric_candidate",
+        "calculate_enthalpy",
+        "generate_crystalformer_structures"
       ]
     }
   ]
