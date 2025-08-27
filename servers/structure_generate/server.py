@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from random import randint
-from typing import List, Optional, Literal, Union
+from typing import List, Optional, Literal, Union, Tuple, Dict
 import os
 # Third-party library imports
 import numpy as np
@@ -76,7 +76,7 @@ class StructureResult(TypedDict):
 
 
 @mcp.tool()
-def build_bulk_structure(
+def build_bulk_structure_by_template(
     element: str,
     conventional: bool = True,
     crystal_structure: Literal['sc', 'fcc', 'bcc', 'hcp',
@@ -156,6 +156,79 @@ def build_bulk_structure(
             'message': f'Bulk structure building failed: {str(e)}'
         }
     
+
+@mcp.tool()
+def build_bulk_structure_by_wyckoff(
+    a: float,
+    b: float,
+    c: float,
+    alpha: float,
+    beta: float,
+    gamma: float,
+    spacegroup: str | int,
+    wyckoff_positions: list,
+    output_file: str = 'structure_bulk.cif'
+) -> StructureResult:
+    '''
+    Generates crystal structures from complete crystallographic specification using Wyckoff positions.
+    Requires user to provide ALL crystallographic parameters: lattice parameters, space group, 
+    and exact Wyckoff site coordinates.
+
+    Args:
+        a (float): Lattice parameter 'a' in Ångströms. Length of the first lattice vector.
+        b (float): Lattice parameter 'b' in Ångströms. Length of the second lattice vector.
+        c (float): Lattice parameter 'c' in Ångströms. Length of the third lattice vector.
+        alpha (float): Lattice angle α in degrees. Angle between lattice vectors b and c.
+        beta (float): Lattice angle β in degrees. Angle between lattice vectors c and a.
+        gamma (float): Lattice angle γ in degrees. Angle between lattice vectors a and b.
+        spacegroup (str | int): Space group specification. Can be provided as:
+            - Integer: Space group number (1-230) from International Tables
+            - String: International space group symbol (e.g., 'Fm-3m', 'P63/mmc', 'Pnma')
+        wyckoff_positions (list): List of Wyckoff site specifications.
+            Each tuple contains:
+            - str: Element symbol (e.g., 'Si', 'O', 'Al')
+            - List[float]: Fractional coordinates [x, y, z] in the unit cell (0-1 range)
+            - str: Wyckoff position label (e.g., '4a', '8c', '24d')
+            - Optional[str]: Optional element label (e.g., 'Fe', 'O')
+        output_file (str): Output filename for the generated structure. Supports various formats
+            based on file extension (.cif, .vasp, .xyz, etc.). Default 'structure_bulk.cif'.
+
+    Returns:
+        StructureResult: Dictionary containing:
+            - structure_path (Path): Path to the generated crystal structure file
+            - message (str): Success message or detailed error information
+
+    Raises:
+        ValueError: If space group is invalid or Wyckoff positions are incompatible
+        Exception: If lattice parameters are invalid or structure generation fails
+    '''
+    try:
+        lattice = Lattice.from_parameters(a=a, b=b, c=c, alpha=alpha, beta=beta, gamma=gamma)
+
+        crys_stru = Structure.from_spacegroup(
+            sg=spacegroup,
+            lattice=lattice,
+            species=[wyckoff_position[0] for wyckoff_position in wyckoff_positions],
+            coords=[wyckoff_position[1] for wyckoff_position in wyckoff_positions],
+            tol=0.001,
+        )
+
+        atoms = crys_stru.to_ase_atoms()
+        write(output_file, atoms)
+
+        logging.info(f'Bulk structure saved to: {output_file}')
+        return {
+            'structure_path': Path(output_file),
+            'message': f'Bulk structure built successfully.'
+        }
+    except Exception as e:
+        logging.error(
+            f'Bulk structure building failed: {str(e)}', exc_info=True)
+        return {
+            'structure_paths': None,
+            'message': f'Bulk structure building failed: {str(e)}'
+        }
+
 
 @mcp.tool()
 def make_supercell_structure(
