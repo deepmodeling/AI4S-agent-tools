@@ -134,4 +134,6 @@ def HEA_data_extract(manuscript:str, out_dir = OUT_DIR_temp)->str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "CatalysisMCP": {
+      "command": "python",
+      "args": [
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "CatalysisMCP",
+        "description": "Catalysis reaction calculations based on ADSEC workflow",
+        "author": "@Rasic2",
+        "category": "chemistry"
+      }
+    }
+  }
+}

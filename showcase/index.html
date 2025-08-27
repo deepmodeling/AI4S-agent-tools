@@ -560,6 +560,163 @@
             font-size: 0.9rem;
         }
         
+        .contributors-section {
+            margin-top: 4rem;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            border-radius: 24px;
+        }
+        
+        .contributors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .contributor-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        
+        a.contributor-card {
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .contributor-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .contributor-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+            border-color: var(--primary);
+        }
+        
+        .contributor-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .contributor-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .contributor-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .contributor-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .contributor-info {
+            flex-grow: 1;
+            min-width: 0;
+        }
+        
+        .contributor-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .contributor-categories {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .contributor-category {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            background: var(--light);
+            border-radius: 12px;
+            color: var(--text-light);
+        }
+        
+        .contributor-stats {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+        
+        .contributor-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .contributor-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .contributor-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .contributor-rank {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+        }
+        
         footer {
             padding: 3rem 0;
             text-align: center;
@@ -734,15 +891,15 @@
                 </div>
                 <div class="stats">
                     <div class="stat">
-                        <div class="stat-value">8</div>
+                        <div class="stat-value">18</div>
                         <div class="stat-label">Collections</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">39</div>
+                        <div class="stat-value">72</div>
                         <div class="stat-label">Tools</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">8</div>
+                        <div class="stat-value">13</div>
                         <div class="stat-label">Contributors</div>
                     </div>
                 </div>
@@ -761,11 +918,8 @@
                     <div class="code-snippet"># Navigate to tool directory
 cd servers/&lt;toolname&gt;
 
-# Install dependencies
-uv sync
-
 # Run the server
-python server.py --port &lt;port&gt;</div>
+uv run python server.py --port &lt;port&gt;</div>
                 </div>
                 <div class="quick-start-card">
                     <h3>🛠️ Add Your Tool</h3>
@@ -777,9 +931,8 @@ cp -r servers/_example servers/my_tool
 cd servers/my_tool
 # ... edit server.py ...
 
-# Install and run
-uv sync
-python server.py --port &lt;port&gt;</div>
+# Run the server
+uv run python server.py --port &lt;port&gt;</div>
                 </div>
             </div>
         </div>
@@ -828,6 +981,8 @@ python server.py --port &lt;port&gt;</div>
             <div class="categories">
                 <span class="category-tag active" data-category="all">All</span>
                 <span class="category-tag" data-category="chemistry">⚗️ Chemistry</span>
+                <span class="category-tag" data-category="data">📊 Data & Analysis</span>
+                <span class="category-tag" data-category="machine-learning">🤖 Machine Learning</span>
                 <span class="category-tag" data-category="materials">💎 Materials Science</span>
                 <span class="category-tag" data-category="physics">⚛️ Physics</span>
                 <span class="category-tag" data-category="research">📚 Research Tools</span>
@@ -837,82 +992,17 @@ python server.py --port &lt;port&gt;</div>
     
     <div class="tools-grid">
         <div class="container">
-            <div class="category-section" data-category="materials">
-                <div class="category-header">
-                    <span class="category-icon">💎</span>
-                    <h2 class="category-title">Materials Science</h2>
-                </div>
-                <div class="tools-row">
-                    <div class="tool-card" onclick="showToolDetails('ABACUS')">
-                        <div class="tool-header">
-                            <div>
-                                <div class="tool-name">ABACUS</div>
-                                <div class="tool-author">@ahxbcn</div>
-                            </div>
-                        </div>
-                        <p class="tool-description">First principles calculations bridge for AI models - ABACUS computational jobs</p>
-                        <div class="tool-features">
-                            <span class="tool-feature">abacus_do_relax</span>
-                            <span class="tool-feature">generate_bulk_structure</span>
-                            <span class="tool-feature">abacus_modify_input</span>
-                            <span class="tool-count">+10 more</span>
-                        </div>
-                    </div>
-                    <div class="tool-card" onclick="showToolDetails('DPACalculatorServer')">
-                        <div class="tool-header">
-                            <div>
-                                <div class="tool-name">DPACalculatorServer</div>
-                                <div class="tool-author">@SchrodingersCattt</div>
-                            </div>
-                        </div>
-                        <p class="tool-description">Deep Potential Agent for atomistic simulation</p>
-                        <div class="tool-features">
-                            <span class="tool-feature">optimize_crystal_structure</span>
-                            <span class="tool-feature">calculate_elastic_constants</span>
-                            <span class="tool-feature">build_surface_interface</span>
-                            <span class="tool-count">+8 more</span>
-                        </div>
-                    </div>
-                    <div class="tool-card" onclick="showToolDetails('ThermoelectricMaterialsServer')">
-                        <div class="tool-header">
-                            <div>
-                                <div class="tool-name">ThermoelectricMaterialsServer</div>
-                                <div class="tool-author">@liuyuxiang92</div>
-                            </div>
-                        </div>
-                        <p class="tool-description">Thermoelectric materials screening with CALYPSO</p>
-                        <div class="tool-features">
-                            <span class="tool-feature">generate_calypso_structures</span>
-                            <span class="tool-feature">predict_thermoelectric_properties</span>
-                            <span class="tool-feature">generate_crystalformer_structures</span>
-                            <span class="tool-count">+2 more</span>
-                        </div>
-                    </div>
-                    <div class="tool-card" onclick="showToolDetails('deepmd_docs_rag')">
-                        <div class="tool-header">
-                            <div>
-                                <div class="tool-name">deepmd_docs_rag</div>
-                                <div class="tool-author">@felix5572</div>
-                            </div>
-                        </div>
-                        <p class="tool-description">DeepMD documentation RAG server</p>
-                        <div class="tool-features">
-                            <span class="tool-feature">upload_single_file_to_deepmd_knowledge_base</span>
-                            <span class="tool-feature">deepmd-docs-workflow</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div class="category-section" data-category="chemistry">
                 <div class="category-header">
-                    <span class="category-icon">⚗️</span>
-                    <h2 class="category-title">Chemistry</h2>
+                    <h2 class="category-title">⚗️ Chemistry</h2>
                 </div>
                 <div class="tools-row">
                     <div class="tool-card" onclick="showToolDetails('CatalysisMCP')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">CatalysisMCP</div>
+                                <div class="tool-name">
+                                    CatalysisMCP
+                                </div>
                                 <div class="tool-author">@Rasic2</div>
                             </div>
                         </div>
@@ -923,10 +1013,27 @@ python server.py --port &lt;port&gt;</div>
                             <span class="tool-feature">cal_vacancy_formation_energy</span>
                         </div>
                     </div>
+                    <div class="tool-card" onclick="showToolDetails('orca_tools')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    orca_tools
+                                </div>
+                                <div class="tool-author">marvcks</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">运行 ORCA 计算。</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">run_orca_calculation</span>
+                            <span class="tool-feature">retrieve_content_from_orca_output</span>
+                        </div>
+                    </div>
                     <div class="tool-card" onclick="showToolDetails('pubchem')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">pubchem</div>
+                                <div class="tool-name">
+                                    pubchem
+                                </div>
                                 <div class="tool-author">@PhelanShao</div>
                             </div>
                         </div>
@@ -938,16 +1045,227 @@ python server.py --port &lt;port&gt;</div>
                     </div>
                 </div>
             </div>
+            <div class="category-section" data-category="data">
+                <div class="category-header">
+                    <h2 class="category-title">📊 Data & Analysis</h2>
+                </div>
+                <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('data_analysis')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    data_analysis
+                                </div>
+                                <div class="tool-author">@nlz25</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">A simplified tool for data analysis</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">analyze_csv_data</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('perovskite_literature_plot')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    perovskite_literature_plot
+                                </div>
+                                <div class="tool-author">Haoming Yan</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Plot perovskite literature data</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">plot_structure_count_vs_time</span>
+                            <span class="tool-feature">plot_pce_vs_time_from_excel</span>
+                            <span class="tool-feature">plot_solar_cell_structure_vs_time</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="category-section" data-category="machine-learning">
+                <div class="category-header">
+                    <h2 class="category-title">🤖 Machine Learning</h2>
+                </div>
+                <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('HEA_predictTool')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    HEA_predictTool
+                                </div>
+                                <div class="tool-author">@Junshang Zhang</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">predict the crystal structure of a type of high entropy alloy</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">HEA_predictor</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="category-section" data-category="materials">
+                <div class="category-header">
+                    <h2 class="category-title">💎 Materials Science</h2>
+                </div>
+                <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('ABACUS')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    ABACUS
+                                </div>
+                                <div class="tool-author">@ahxbcn</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">First principles calculations bridge for AI models - ABACUS computational jobs</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">abacus_cal_band</span>
+                            <span class="tool-feature">abacus_collect_data</span>
+                            <span class="tool-feature">abacus_dos_run</span>
+                            <span class="tool-count">+10 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('CompositionDART')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    CompositionDART
+                                </div>
+                                <div class="tool-author">@SchrodingersCattt</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Composition Optimization via DPA-based Adaptive Refinement Targeting (DART) for materials discovery.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">run_ga</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('DPACalculatorServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    DPACalculatorServer
+                                </div>
+                                <div class="tool-author">@SchrodingersCattt</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Deep Potential Agent for atomistic simulation</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">optimize_crystal_structure</span>
+                            <span class="tool-feature">build_surface_adsorbate</span>
+                            <span class="tool-feature">run_neb</span>
+                            <span class="tool-count">+8 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('DPComboServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    DPComboServer
+                                </div>
+                                <div class="tool-author">@SchrodingersCattt</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">A Server for DP model training/finetuning/inference and dataset manipulation.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">parse_dpdata</span>
+                            <span class="tool-feature">filter_outliers</span>
+                            <span class="tool-feature">stat_efv</span>
+                            <span class="tool-count">+6 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('StructureGenerateServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    StructureGenerateServer
+                                </div>
+                                <div class="tool-author">@A-LOST-WAPITI</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Generate structures with ASE, CALYPSO, and CrystalFormer</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">build_surface_adsorbate</span>
+                            <span class="tool-feature">build_surface_interface</span>
+                            <span class="tool-feature">build_molecule_structure</span>
+                            <span class="tool-count">+6 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('SuperconductorServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    SuperconductorServer
+                                </div>
+                                <div class="tool-author">@liuyuxiang92</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Superconductor critical temperature prediction</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">generate_crystalformer_structures</span>
+                            <span class="tool-feature">predict_superconductor_Tc</span>
+                            <span class="tool-feature">calculate_enthalpy</span>
+                            <span class="tool-count">+1 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('ThermoelectricMaterialsServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    ThermoelectricMaterialsServer
+                                </div>
+                                <div class="tool-author">@liuyuxiang92</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Thermoelectric materials screening with CALYPSO</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">generate_crystalformer_structures</span>
+                            <span class="tool-feature">calculate_enthalpy</span>
+                            <span class="tool-feature">generate_calypso_structures</span>
+                            <span class="tool-count">+2 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('deepmd_docs_rag')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    deepmd_docs_rag
+                                </div>
+                                <div class="tool-author">@felix5572</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">DeepMD documentation RAG server</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">upload_single_file_to_deepmd_knowledge_base</span>
+                            <span class="tool-feature">deepmd-docs-workflow</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('matbench_property_prediction')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    matbench_property_prediction
+                                </div>
+                                <div class="tool-author">2043899742@qq.com</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Predict matbench properties using deep potential models</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">predict_matbench_properties</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="category-section" data-category="physics">
                 <div class="category-header">
-                    <span class="category-icon">⚛️</span>
-                    <h2 class="category-title">Physics</h2>
+                    <h2 class="category-title">⚛️ Physics</h2>
                 </div>
                 <div class="tools-row">
                     <div class="tool-card" onclick="showToolDetails('PYSR-Symbolic-Regression')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">PYSR-Symbolic-Regression</div>
+                                <div class="tool-name">
+                                    PYSR-Symbolic-Regression
+                                </div>
                                 <div class="tool-author">@lhhhappy</div>
                             </div>
                         </div>
@@ -960,21 +1278,37 @@ python server.py --port &lt;port&gt;</div>
             </div>
             <div class="category-section" data-category="research">
                 <div class="category-header">
-                    <span class="category-icon">📚</span>
-                    <h2 class="category-title">Research Tools</h2>
+                    <h2 class="category-title">📚 Research Tools</h2>
                 </div>
                 <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('HEA_extractTool')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    HEA_extractTool
+                                </div>
+                                <div class="tool-author">@Junshang Zhang</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">extract structural data of HEA materials from searched or given publications</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">HEA_data_extract</span>
+                            <span class="tool-feature">search_paper</span>
+                        </div>
+                    </div>
                     <div class="tool-card" onclick="showToolDetails('paper_search')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">paper_search</div>
-                                <div class="tool-author">@Demo</div>
+                                <div class="tool-name">
+                                    paper_search
+                                </div>
+                                <div class="tool-author">@lhhhappy</div>
                             </div>
                         </div>
                         <p class="tool-description">Scientific literature search tool for arXiv papers</p>
                         <div class="tool-features">
-                            <span class="tool-feature">extract_info</span>
                             <span class="tool-feature">search_papers</span>
+                            <span class="tool-feature">extract_info</span>
                         </div>
                     </div>
                 </div>
@@ -1008,6 +1342,162 @@ python server.py --port &lt;port&gt;</div>
                     <div class="community-desc">Passionate about collaboration</div>
                 </div>
             </div>
+
+            <div class="contributors-section">
+                <h3 class="section-title">Our Contributors</h3>
+                <p class="section-subtitle">The amazing developers building the future of scientific computing</p>
+                <div class="contributors-grid">
+                <a href="https://github.com/SchrodingersCattt" target="_blank" class="contributor-card">
+                    <div class="contributor-rank">🥇</div>
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/SchrodingersCattt.png?size=100" alt="@SchrodingersCattt" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">SC</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@SchrodingersCattt</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">💎 materials</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">3</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">21</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/ahxbcn" target="_blank" class="contributor-card">
+                    <div class="contributor-rank">🥈</div>
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/ahxbcn.png?size=100" alt="@ahxbcn" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">AH</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@ahxbcn</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">💎 materials</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">1</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">13</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/A-LOST-WAPITI" target="_blank" class="contributor-card">
+                    <div class="contributor-rank">🥉</div>
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/A-LOST-WAPITI.png?size=100" alt="@A-LOST-WAPITI" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">A-</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@A-LOST-WAPITI</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">💎 materials</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">1</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">9</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/liuyuxiang92" target="_blank" class="contributor-card">
+                    
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/liuyuxiang92.png?size=100" alt="@liuyuxiang92" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">LI</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@liuyuxiang92</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">💎 materials</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">2</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">9</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/Rasic2" target="_blank" class="contributor-card">
+                    
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/Rasic2.png?size=100" alt="@Rasic2" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">RA</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@Rasic2</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">⚗️ chemistry</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">1</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">3</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/Junshang Zhang" target="_blank" class="contributor-card">
+                    
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/Junshang Zhang.png?size=100" alt="@Junshang Zhang" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">JU</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@Junshang Zhang</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">🤖 machine-learning</span>
+                                <span class="contributor-category">📚 research</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">2</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">3</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-light); font-style: italic;">
+                    <p style="font-size: 1.1rem;">and 7 more contributors...</p>
+                    <a href="https://github.com/deepmodeling/AI4S-agent-tools/blob/main/data/CONTRIBUTORS.md" style="color: var(--primary); text-decoration: none; font-weight: 500;">View all contributors →</a>
+                </div>
+                </div>
+            </div>
         </div>
     </section>
     
@@ -1019,7 +1509,7 @@ python server.py --port &lt;port&gt;</div>
                 <a href="https://github.com/deepmodeling">DeepModeling</a>
                 <a href="https://github.com/deepmodeling/AI4S-agent-tools/blob/main/LICENSE">License</a>
             </div>
-            <p>Generated on 2025-07-26 • Built with ❤️ by the <a href="https://github.com/deepmodeling" style="color: var(--primary);">DeepModeling</a> community</p>
+            <p>Generated on {datetime.now().strftime('%Y-%m-%d')} • Built with ❤️ by the <a href="https://github.com/deepmodeling" style="color: var(--primary);">DeepModeling</a> community</p>
         </div>
     </footer>
     
@@ -1033,199 +1523,71 @@ python server.py --port &lt;port&gt;</div>
     </div>
     
     <script>
-        const toolsData = [
-    {
-        "name": "ABACUS",
-        "description": "First principles calculations bridge for AI models - ABACUS computational jobs",
-        "author": "@ahxbcn",
-        "category": "materials",
-        "path": "servers/ABACUS-tools",
-        "start_command": "cd servers/ABACUS-tools && python server.py --port <PORT>",
-        "install_command": "cd servers/ABACUS-tools && uv sync",
-        "tools": [
-            "abacus_do_relax",
-            "generate_bulk_structure",
-            "abacus_modify_input",
-            "generate_deeptb_config",
-            "abacus_badercharge_run",
-            "abacus_dos_run",
-            "abacus_cal_band",
-            "abacus_prepare",
-            "run_abacus_onejob",
-            "abacus_modify_stru",
-            "abacus_prepare_inputs_from_relax_results",
-            "abacus_cal_elastic",
-            "abacus_collect_data"
-        ]
-    },
-    {
-        "name": "CatalysisMCP",
-        "description": "Catalysis reaction calculations based on ADSEC workflow",
-        "author": "@Rasic2",
-        "category": "chemistry",
-        "path": "servers/catalysis",
-        "start_command": "cd servers/catalysis && python server.py --port <PORT>",
-        "install_command": "cd servers/catalysis && uv sync",
-        "tools": [
-            "cal_surface_energy",
-            "cal_ads_energy",
-            "cal_vacancy_formation_energy"
-        ]
-    },
-    {
-        "name": "DPACalculatorServer",
-        "description": "Deep Potential Agent for atomistic simulation",
-        "author": "@SchrodingersCattt",
-        "category": "materials",
-        "path": "servers/DPACalculator",
-        "start_command": "cd servers/DPACalculator && python server.py --port <PORT>",
-        "install_command": "cd servers/DPACalculator && uv sync",
-        "tools": [
-            "optimize_crystal_structure",
-            "calculate_elastic_constants",
-            "build_surface_interface",
-            "run_neb",
-            "build_molecule_structure",
-            "build_bulk_structure",
-            "calculate_phonon",
-            "make_supercell_structure",
-            "build_surface_adsorbate",
-            "run_molecular_dynamics",
-            "build_surface_slab"
-        ]
-    },
-    {
-        "name": "PYSR-Symbolic-Regression",
-        "description": "PYSR-Symbolic-Regression",
-        "author": "@lhhhappy",
-        "category": "physics",
-        "tools": [
-            "symbolic_regression"
-        ],
-        "path": "servers/Symbolic_regression",
-        "start_command": "cd servers/Symbolic_regression && python server.py --port <PORT>",
-        "install_command": "cd servers/Symbolic_regression && uv sync"
-    },
-    {
-        "name": "ThermoelectricMaterialsServer",
-        "description": "Thermoelectric materials screening with CALYPSO",
-        "author": "@liuyuxiang92",
-        "category": "materials",
-        "path": "servers/thermoelectric",
-        "start_command": "cd servers/thermoelectric && python server.py --port <PORT>",
-        "install_command": "cd servers/thermoelectric && uv sync",
-        "tools": [
-            "generate_calypso_structures",
-            "predict_thermoelectric_properties",
-            "generate_crystalformer_structures",
-            "screen_thermoelectric_candidate",
-            "calculate_enthalpy"
-        ]
-    },
-    {
-        "name": "deepmd_docs_rag",
-        "description": "DeepMD documentation RAG server",
-        "author": "@felix5572",
-        "category": "materials",
-        "tools": [
-            "upload_single_file_to_deepmd_knowledge_base",
-            "deepmd-docs-workflow"
-        ],
-        "path": "servers/deepmd_docs_rag",
-        "start_command": "cd servers/deepmd_docs_rag && python server.py --port <PORT>",
-        "install_command": "cd servers/deepmd_docs_rag && uv sync"
-    },
-    {
-        "name": "paper_search",
-        "description": "Scientific literature search tool for arXiv papers",
-        "author": "@Demo",
-        "category": "research",
-        "tools": [
-            "extract_info",
-            "search_papers"
-        ],
-        "path": "servers/Paper_Search",
-        "start_command": "cd servers/Paper_Search && python server.py --port <PORT>",
-        "install_command": "cd servers/Paper_Search && uv sync"
-    },
-    {
-        "name": "pubchem",
-        "description": "PubChem compound data retrieval",
-        "author": "@PhelanShao",
-        "category": "chemistry",
-        "path": "servers/pubchem",
-        "start_command": "cd servers/pubchem && python server.py --port <PORT>",
-        "install_command": "cd servers/pubchem && uv sync",
-        "tools": [
-            "download_structure",
-            "get_pubchem_data"
-        ]
-    }
-];
+        const toolsData = [{"name": "ABACUS", "description": "First principles calculations bridge for AI models - ABACUS computational jobs", "author": "@ahxbcn", "category": "materials", "path": "servers/ABACUS-tools", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/ABACUS-tools && python server.py --port <PORT>\n# stdio mode\ncd servers/ABACUS-tools && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/ABACUS-tools && uv sync", "tools": ["abacus_cal_band", "abacus_collect_data", "abacus_dos_run", "generate_deeptb_config", "run_abacus_onejob", "abacus_prepare", "abacus_badercharge_run", "abacus_prepare_inputs_from_relax_results", "generate_bulk_structure", "abacus_modify_input", "abacus_cal_elastic", "abacus_do_relax", "abacus_modify_stru"]}, {"name": "CatalysisMCP", "description": "Catalysis reaction calculations based on ADSEC workflow", "author": "@Rasic2", "category": "chemistry", "path": "servers/catalysis", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/catalysis && python server.py --port <PORT>\n# stdio mode\ncd servers/catalysis && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/catalysis && uv sync", "tools": ["cal_surface_energy", "cal_ads_energy", "cal_vacancy_formation_energy"]}, {"name": "CompositionDART", "description": "Composition Optimization via DPA-based Adaptive Refinement Targeting (DART) for materials discovery.", "author": "@SchrodingersCattt", "category": "materials", "path": "servers/CompositionDART", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/CompositionDART && python server.py --port <PORT>\n# stdio mode\ncd servers/CompositionDART && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/CompositionDART && uv sync", "tools": ["run_ga"]}, {"name": "data_analysis", "description": "A simplified tool for data analysis", "author": "@nlz25", "category": "data", "tools": ["analyze_csv_data"], "path": "servers/data_analysis", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/data_analysis && python server.py --port <PORT>\n# stdio mode\ncd servers/data_analysis && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/data_analysis && uv sync"}, {"name": "deepmd_docs_rag", "description": "DeepMD documentation RAG server", "author": "@felix5572", "category": "materials", "tools": ["upload_single_file_to_deepmd_knowledge_base", "deepmd-docs-workflow"], "path": "servers/deepmd_docs_rag", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/deepmd_docs_rag && python server.py --port <PORT>\n# stdio mode\ncd servers/deepmd_docs_rag && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/deepmd_docs_rag && uv sync"}, {"name": "DPACalculatorServer", "description": "Deep Potential Agent for atomistic simulation", "author": "@SchrodingersCattt", "category": "materials", "path": "servers/DPACalculator", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/DPACalculator && python server.py --port <PORT>\n# stdio mode\ncd servers/DPACalculator && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/DPACalculator && uv sync", "tools": ["optimize_crystal_structure", "build_surface_adsorbate", "run_neb", "build_surface_interface", "build_molecule_structure", "calculate_phonon", "build_surface_slab", "run_molecular_dynamics", "calculate_elastic_constants", "build_bulk_structure", "make_supercell_structure"]}, {"name": "DPComboServer", "description": "A Server for DP model training/finetuning/inference and dataset manipulation.", "author": "@SchrodingersCattt", "category": "materials", "path": "servers/DPCombo", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/DPCombo && python server.py --port <PORT>\n# stdio mode\ncd servers/DPCombo && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/DPCombo && uv sync", "tools": ["parse_dpdata", "filter_outliers", "stat_efv", "evaluate_error", "downsample_dataset", "identify_mixedtype", "infer_dp_model", "train_dp_model", "stat_af"]}, {"name": "HEA_extractTool", "description": "extract structural data of HEA materials from searched or given publications", "author": "@Junshang Zhang", "category": "research", "tools": ["HEA_data_extract", "search_paper"], "path": "servers/HEA_paper_extract", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/HEA_paper_extract && python server.py --port <PORT>\n# stdio mode\ncd servers/HEA_paper_extract && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/HEA_paper_extract && uv sync"}, {"name": "HEA_predictTool", "description": "predict the crystal structure of a type of high entropy alloy", "author": "@Junshang Zhang", "category": "machine-learning", "tools": ["HEA_predictor"], "path": "servers/HEA_predict", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/HEA_predict && python server.py --port <PORT>\n# stdio mode\ncd servers/HEA_predict && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/HEA_predict && uv sync"}, {"name": "matbench_property_prediction", "description": "Predict matbench properties using deep potential models", "author": "2043899742@qq.com", "category": "materials", "tools": ["predict_matbench_properties"], "path": "servers/matbench_property_prediction", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/matbench_property_prediction && python server.py --port <PORT>\n# stdio mode\ncd servers/matbench_property_prediction && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/matbench_property_prediction && uv sync"}, {"name": "orca_tools", "description": "\u8fd0\u884c ORCA \u8ba1\u7b97\u3002", "author": "marvcks", "category": "chemistry", "tools": ["run_orca_calculation", "retrieve_content_from_orca_output"], "path": "servers/ORCA_tools", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/ORCA_tools && python server.py --port <PORT>\n# stdio mode\ncd servers/ORCA_tools && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/ORCA_tools && uv sync"}, {"name": "paper_search", "description": "Scientific literature search tool for arXiv papers", "author": "@lhhhappy", "category": "research", "tools": ["search_papers", "extract_info"], "path": "servers/Paper_Search", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/Paper_Search && python server.py --port <PORT>\n# stdio mode\ncd servers/Paper_Search && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/Paper_Search && uv sync"}, {"name": "perovskite_literature_plot", "description": "Plot perovskite literature data", "author": "Haoming Yan", "category": "data", "tools": ["plot_structure_count_vs_time", "plot_pce_vs_time_from_excel", "plot_solar_cell_structure_vs_time"], "path": "servers/perovskite_literature_plot", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/perovskite_literature_plot && python server.py --port <PORT>\n# stdio mode\ncd servers/perovskite_literature_plot && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/perovskite_literature_plot && uv sync"}, {"name": "pubchem", "description": "PubChem compound data retrieval", "author": "@PhelanShao", "category": "chemistry", "path": "servers/pubchem", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/pubchem && python server.py --port <PORT>\n# stdio mode\ncd servers/pubchem && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/pubchem && uv sync", "tools": ["download_structure", "get_pubchem_data"]}, {"name": "PYSR-Symbolic-Regression", "description": "PYSR-Symbolic-Regression", "author": "@lhhhappy", "category": "physics", "tools": ["symbolic_regression"], "path": "servers/Symbolic_regression", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/Symbolic_regression && python server.py --port <PORT>\n# stdio mode\ncd servers/Symbolic_regression && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/Symbolic_regression && uv sync"}, {"name": "StructureGenerateServer", "description": "Generate structures with ASE, CALYPSO, and CrystalFormer", "author": "@A-LOST-WAPITI", "category": "materials", "tools": ["build_surface_adsorbate", "build_surface_interface", "build_molecule_structure", "add_cell_for_molecules", "generate_crystalformer_structures", "generate_calypso_structures", "build_surface_slab", "build_bulk_structure", "make_supercell_structure"], "path": "servers/structure_generate", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/structure_generate && python server.py --port <PORT>\n# stdio mode\ncd servers/structure_generate && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/structure_generate && uv sync"}, {"name": "SuperconductorServer", "description": "Superconductor critical temperature prediction", "author": "@liuyuxiang92", "category": "materials", "path": "servers/superconductor", "transport": ["sse", "stdio"], "start_command": "See README for details", "install_command": "Contact @liuyuxiang92 for access", "tools": ["generate_crystalformer_structures", "predict_superconductor_Tc", "calculate_enthalpy", "generate_calypso_structure"]}, {"name": "ThermoelectricMaterialsServer", "description": "Thermoelectric materials screening with CALYPSO", "author": "@liuyuxiang92", "category": "materials", "path": "servers/thermoelectric", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/thermoelectric && python server.py --port <PORT>\n# stdio mode\ncd servers/thermoelectric && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/thermoelectric && uv sync", "tools": ["generate_crystalformer_structures", "calculate_enthalpy", "generate_calypso_structures", "predict_thermoelectric_properties", "screen_thermoelectric_candidate"]}];
         
         // Theme toggle functionality
-        function toggleTheme() {
+        function toggleTheme() {{
             const body = document.body;
             const themeIcon = document.getElementById('theme-icon');
             const currentTheme = body.getAttribute('data-theme');
             
-            if (currentTheme === 'dark') {
+            if (currentTheme === 'dark') {{
                 body.removeAttribute('data-theme');
                 themeIcon.textContent = '🌙';
                 localStorage.setItem('theme', 'light');
-            } else {
+            }} else {{
                 body.setAttribute('data-theme', 'dark');
                 themeIcon.textContent = '☀️';
                 localStorage.setItem('theme', 'dark');
-            }
-        }
+            }}
+        }}
         
         // Initialize theme from localStorage
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function() {{
             const savedTheme = localStorage.getItem('theme');
             const themeIcon = document.getElementById('theme-icon');
             
-            if (savedTheme === 'dark') {
+            if (savedTheme === 'dark') {{
                 document.body.setAttribute('data-theme', 'dark');
                 themeIcon.textContent = '☀️';
-            } else {
+            }} else {{
                 themeIcon.textContent = '🌙';
-            }
-        });
+            }}
+        }});
         
         // Search functionality
-        document.getElementById('searchInput').addEventListener('input', function(e) {
+        document.getElementById('searchInput').addEventListener('input', function(e) {{
             const searchTerm = e.target.value.toLowerCase();
             filterTools(searchTerm);
-        });
+        }});
         
         // Category filter
-        document.querySelectorAll('.category-tag').forEach(tag => {
-            tag.addEventListener('click', function() {
+        document.querySelectorAll('.category-tag').forEach(tag => {{
+            tag.addEventListener('click', function() {{
                 document.querySelectorAll('.category-tag').forEach(t => t.classList.remove('active'));
                 this.classList.add('active');
                 
                 const category = this.dataset.category;
-                if (category === 'all') {
-                    document.querySelectorAll('.category-section').forEach(section => {
+                if (category === 'all') {{
+                    document.querySelectorAll('.category-section').forEach(section => {{
                         section.style.display = 'block';
-                    });
-                } else {
-                    document.querySelectorAll('.category-section').forEach(section => {
+                    }});
+                }} else {{
+                    document.querySelectorAll('.category-section').forEach(section => {{
                         section.style.display = section.dataset.category === category ? 'block' : 'none';
-                    });
-                }
-            });
-        });
+                    }});
+                }}
+            }});
+        }});
         
-        function filterTools(searchTerm) {
-            document.querySelectorAll('.tool-card').forEach(card => {
+        function filterTools(searchTerm) {{
+            document.querySelectorAll('.tool-card').forEach(card => {{
                 const text = card.textContent.toLowerCase();
                 card.style.display = text.includes(searchTerm) ? 'block' : 'none';
-            });
-        }
+            }});
+        }}
         
-        function showToolDetails(toolName) {
+        function showToolDetails(toolName) {{
             const tool = toolsData.find(t => t.name === toolName);
             if (!tool) return;
             
@@ -1243,46 +1605,60 @@ python server.py --port &lt;port&gt;</div>
                 </div>
                 
                 <div class="modal-section">
-                    <div class="modal-section-title">Installation</div>
-                    <div class="code-block">${tool.install_command || `cd ${tool.path} && uv sync`}</div>
+                    <div class="modal-section-title">Transport</div>
+                    <p>${getTransportDisplay(tool.transport)}</p>
                 </div>
                 
                 <div class="modal-section">
                     <div class="modal-section-title">Start Command</div>
-                    <div class="code-block">${tool.start_command}</div>
+                    <div class="code-block">cd ${tool.path} && uv run python server.py --port &lt;PORT&gt;</div>
                 </div>
             `;
             
-            if (tool.tools && tool.tools.length > 0) {
+            if (tool.tools && tool.tools.length > 0) {{
                 content += `
                     <div class="modal-section">
                         <div class="modal-section-title">Available Functions (${tool.tools.length})</div>
                         <div class="tool-features">
                 `;
-                tool.tools.forEach(t => {
+                tool.tools.forEach(t => {{
                     content += `<span class="tool-feature">${t}</span>`;
-                });
+                }});
                 content += `
                         </div>
                     </div>
                 `;
-            }
+            }}
             
             document.getElementById('modalContent').innerHTML = content;
             document.getElementById('toolModal').style.display = 'block';
-        }
+        }}
         
-        function closeModal() {
+        function getTransportDisplay(transport) {{
+            if (!Array.isArray(transport)) {{
+                transport = [transport];
+            }}
+            const badges = [];
+            if (transport.includes('sse')) {{
+                badges.push('🔌 SSE (Port-based)');
+            }}
+            if (transport.includes('stdio')) {{
+                badges.push('📝 stdio (Standard I/O)');
+            }}
+            return badges.join(' | ') || '🔄 Both modes';
+        }}
+        
+        function closeModal() {{
             document.getElementById('toolModal').style.display = 'none';
-        }
+        }}
         
         // Close modal when clicking outside
-        window.onclick = function(event) {
+        window.onclick = function(event) {{
             const modal = document.getElementById('toolModal');
-            if (event.target == modal) {
+            if (event.target == modal) {{
                 modal.style.display = 'none';
-            }
-        }
+            }}
+        }}
     </script>
 </body>
 </html>

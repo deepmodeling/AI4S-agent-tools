@@ -29,11 +29,18 @@ def get_tool_category(tool: dict, categories_config: dict) -> str:
 def generate_showcase():
     """Generate the showcase HTML page."""
     root_dir = Path(__file__).parent.parent
-    tools_json_path = root_dir / "TOOLS.json"
+    tools_json_path = root_dir / "data" / "tools.json"
+    contributors_json_path = root_dir / "data" / "contributors.json"
     
     # Load tools data
     with open(tools_json_path, 'r', encoding='utf-8') as f:
         tools_data = json.load(f)
+    
+    # Load contributors data
+    contributors_data = None
+    if contributors_json_path.exists():
+        with open(contributors_json_path, 'r', encoding='utf-8') as f:
+            contributors_data = json.load(f)
     
     # Load categories
     categories_config = load_categories()
@@ -41,7 +48,7 @@ def generate_showcase():
     
     # Categorize tools using their metadata
     categorized_tools = {}
-    for tool in tools_data["tools"]:
+    for tool in sorted(tools_data["tools"], key=lambda x: x.get('name', '')):
         category = get_tool_category(tool, categories_config)
         if category not in categorized_tools:
             categorized_tools[category] = []
@@ -610,6 +617,163 @@ def generate_showcase():
             font-size: 0.9rem;
         }}
         
+        .contributors-section {{
+            margin-top: 4rem;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            border-radius: 24px;
+        }}
+        
+        .contributors-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }}
+        
+        .contributor-card {{
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }}
+        
+        a.contributor-card {{
+            text-decoration: none;
+            color: inherit;
+        }}
+        
+        .contributor-card::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }}
+        
+        .contributor-card:hover {{
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+            border-color: var(--primary);
+        }}
+        
+        .contributor-card:hover::before {{
+            transform: scaleX(1);
+        }}
+        
+        .contributor-header {{
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }}
+        
+        .contributor-avatar {{
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            position: relative;
+        }}
+        
+        .contributor-avatar img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }}
+        
+        .contributor-info {{
+            flex-grow: 1;
+            min-width: 0;
+        }}
+        
+        .contributor-name {{
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }}
+        
+        .contributor-categories {{
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }}
+        
+        .contributor-category {{
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            background: var(--light);
+            border-radius: 12px;
+            color: var(--text-light);
+        }}
+        
+        .contributor-stats {{
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }}
+        
+        .contributor-stat {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }}
+        
+        .contributor-stat-value {{
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }}
+        
+        .contributor-stat-label {{
+            font-size: 0.75rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        
+        .contributor-rank {{
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+        }}
+        
         footer {{
             padding: 3rem 0;
             text-align: center;
@@ -792,7 +956,7 @@ def generate_showcase():
                         <div class="stat-label">Tools</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">{len(set(tool.get('author', '@unknown') for tool in tools_data['tools']))}</div>
+                        <div class="stat-value">{contributors_data['total_contributors'] if contributors_data else len(set(tool.get('author', '@unknown') for tool in tools_data['tools']))}</div>
                         <div class="stat-label">Contributors</div>
                     </div>
                 </div>
@@ -811,11 +975,8 @@ def generate_showcase():
                     <div class="code-snippet"># Navigate to tool directory
 cd servers/&lt;toolname&gt;
 
-# Install dependencies
-uv sync
-
 # Run the server
-python server.py --port &lt;port&gt;</div>
+uv run python server.py --port &lt;port&gt;</div>
                 </div>
                 <div class="quick-start-card">
                     <h3>🛠️ Add Your Tool</h3>
@@ -827,9 +988,8 @@ cp -r servers/_example servers/my_tool
 cd servers/my_tool
 # ... edit server.py ...
 
-# Install and run
-uv sync
-python server.py --port &lt;port&gt;</div>
+# Run the server
+uv run python server.py --port &lt;port&gt;</div>
                 </div>
             </div>
         </div>
@@ -879,7 +1039,7 @@ python server.py --port &lt;port&gt;</div>
                 <span class="category-tag active" data-category="all">All</span>
 """
     
-    for cat_id, cat_info in categories.items():
+    for cat_id, cat_info in sorted(categories.items()):
         if cat_id in categorized_tools:
             html += f"""                <span class="category-tag" data-category="{cat_id}">{cat_info['icon']} {cat_info['name']}</span>
 """
@@ -892,14 +1052,13 @@ python server.py --port &lt;port&gt;</div>
         <div class="container">
 """
     
-    # Add tools by category
-    for cat_id, tools in categorized_tools.items():
+    # Add tools by category (sorted alphabetically)
+    for cat_id, tools in sorted(categorized_tools.items()):
         if cat_id in categories:
             cat_info = categories[cat_id]
             html += f"""            <div class="category-section" data-category="{cat_id}">
                 <div class="category-header">
-                    <span class="category-icon">{cat_info['icon']}</span>
-                    <h2 class="category-title">{cat_info['name']}</h2>
+                    <h2 class="category-title">{cat_info['icon']} {cat_info['name']}</h2>
                 </div>
                 <div class="tools-row">
 """
@@ -911,7 +1070,9 @@ python server.py --port &lt;port&gt;</div>
                 html += f"""                    <div class="tool-card" onclick="showToolDetails('{tool['name']}')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">{tool['name']}</div>
+                                <div class="tool-name">
+                                    {tool['name']}
+                                </div>
                                 <div class="tool-author">{tool.get('author', '@unknown')}</div>
                             </div>
                         </div>
@@ -964,7 +1125,112 @@ python server.py --port &lt;port&gt;</div>
                     <div class="community-desc">Passionate about collaboration</div>
                 </div>
             </div>
-        </div>
+"""
+    
+    # 添加贡献者展示区域
+    if contributors_data:
+        html += """
+            <div class="contributors-section">
+                <h3 class="section-title">Our Contributors</h3>
+                <p class="section-subtitle">The amazing developers building the future of scientific computing</p>
+                <div class="contributors-grid">
+"""
+        # 从配置文件获取类别图标映射
+        category_icons = {}
+        for cat_id, cat_info in sorted(categories.items()):
+            category_icons[cat_id] = cat_info.get('icon', '📦')
+        
+        # 只展示前5名贡献者
+        top_contributors = contributors_data['contributors'][:6]
+        total_contributors = contributors_data.get('total_contributors', len(contributors_data['contributors']))
+        
+        for idx, contributor in enumerate(top_contributors):
+            author_name = contributor['author']
+            collections_count = contributor.get('collections_count', 0)
+            tools_count = contributor.get('tools_count', 0)
+            categories = contributor.get('categories', [])
+            
+            # 生成头像
+            avatar_content = ""
+            link_start = ""
+            link_end = ""
+            
+            if author_name.startswith('@'):
+                github_username = author_name[1:]
+                link_start = f'<a href="https://github.com/{github_username}" target="_blank" class="contributor-card">'
+                link_end = '</a>'
+                # GitHub 用户使用真实头像
+                avatar_content = f'<img src="https://github.com/{github_username}.png?size=100" alt="{author_name}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\'">'
+                # 备用首字母
+                initials = github_username[:2].upper()
+                avatar_content += f'<div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">{initials}</div>'
+            else:
+                # 非 GitHub 用户显示首字母
+                if '@' in author_name:
+                    initials = author_name.split('@')[0][:2].upper()
+                else:
+                    words = author_name.split()
+                    initials = ''.join([w[0].upper() for w in words[:2]])
+                avatar_content = f'<div style="display:flex; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">{initials}</div>'
+                link_start = '<div class="contributor-card">'
+                link_end = '</div>'
+            
+            # 排名徽章（前三名）
+            rank_badge = ""
+            if idx == 0:
+                rank_badge = '<div class="contributor-rank">🥇</div>'
+            elif idx == 1:
+                rank_badge = '<div class="contributor-rank">🥈</div>'
+            elif idx == 2:
+                rank_badge = '<div class="contributor-rank">🥉</div>'
+            
+            # 主要类别
+            main_categories = categories[:2] if categories else []
+            
+            html += f"""                {link_start}
+                    {rank_badge}
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            {avatar_content}
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">{author_name}</div>
+                            <div class="contributor-categories">
+"""
+            for cat in main_categories:
+                icon = category_icons.get(cat, '📦')
+                html += f"""                                <span class="contributor-category">{icon} {cat}</span>
+"""
+            html += """                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">{collections_count}</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">{tools_count}</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                {link_end}
+""".format(collections_count=collections_count, tools_count=tools_count, link_start=link_start, link_end=link_end)
+        
+        # 如果还有更多贡献者，显示提示
+        if total_contributors > 6:
+            remaining = total_contributors - 6
+            html += f"""                <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-light); font-style: italic;">
+                    <p style="font-size: 1.1rem;">and {remaining} more contributors...</p>
+                    <a href="https://github.com/deepmodeling/AI4S-agent-tools/blob/main/data/CONTRIBUTORS.md" style="color: var(--primary); text-decoration: none; font-weight: 500;">View all contributors →</a>
+                </div>
+"""
+        
+        html += """                </div>
+            </div>
+"""
+    
+    html += """        </div>
     </section>
     
     <footer>
@@ -989,7 +1255,7 @@ python server.py --port &lt;port&gt;</div>
     </div>
     
     <script>
-        const toolsData = {json.dumps(tools_data['tools'], indent=4)};
+        const toolsData = """ + json.dumps(tools_data['tools']) + """;
         
         // Theme toggle functionality
         function toggleTheme() {{
@@ -1062,33 +1328,33 @@ python server.py --port &lt;port&gt;</div>
             let content = `
                 <div class="modal-section">
                     <div class="modal-section-title">Description</div>
-                    <p>${{tool.description || 'No description available'}}</p>
+                    <p>${tool.description || 'No description available'}</p>
                 </div>
                 
                 <div class="modal-section">
                     <div class="modal-section-title">Author</div>
-                    <p>${{tool.author || '@unknown'}}</p>
+                    <p>${tool.author || '@unknown'}</p>
                 </div>
                 
                 <div class="modal-section">
-                    <div class="modal-section-title">Installation</div>
-                    <div class="code-block">${{tool.install_command || `cd ${{tool.path}} && uv sync`}}</div>
+                    <div class="modal-section-title">Transport</div>
+                    <p>${getTransportDisplay(tool.transport)}</p>
                 </div>
                 
                 <div class="modal-section">
                     <div class="modal-section-title">Start Command</div>
-                    <div class="code-block">${{tool.start_command}}</div>
+                    <div class="code-block">cd ${tool.path} && uv run python server.py --port &lt;PORT&gt;</div>
                 </div>
             `;
             
             if (tool.tools && tool.tools.length > 0) {{
                 content += `
                     <div class="modal-section">
-                        <div class="modal-section-title">Available Functions (${{tool.tools.length}})</div>
+                        <div class="modal-section-title">Available Functions (${tool.tools.length})</div>
                         <div class="tool-features">
                 `;
                 tool.tools.forEach(t => {{
-                    content += `<span class="tool-feature">${{t}}</span>`;
+                    content += `<span class="tool-feature">${t}</span>`;
                 }});
                 content += `
                         </div>
@@ -1098,6 +1364,20 @@ python server.py --port &lt;port&gt;</div>
             
             document.getElementById('modalContent').innerHTML = content;
             document.getElementById('toolModal').style.display = 'block';
+        }}
+        
+        function getTransportDisplay(transport) {{
+            if (!Array.isArray(transport)) {{
+                transport = [transport];
+            }}
+            const badges = [];
+            if (transport.includes('sse')) {{
+                badges.push('🔌 SSE (Port-based)');
+            }}
+            if (transport.includes('stdio')) {{
+                badges.push('📝 stdio (Standard I/O)');
+            }}
+            return badges.join(' | ') || '🔄 Both modes';
         }}
         
         function closeModal() {{

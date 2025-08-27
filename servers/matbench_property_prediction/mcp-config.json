@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "matbench_property_prediction": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/matbench_property_prediction",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "matbench_property_prediction",
+        "description": "Predict matbench properties using deep potential models",
+        "author": "2043899742@qq.com",
+        "category": "materials"
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@ Example MCP Server using the new simplified pattern.
 This demonstrates how to create a new AI4S tool with tools defined at module level.
 """
 import argparse
-
+import os
 
 from mcp.server.fastmcp import FastMCP
 
@@ -64,4 +64,6 @@ def demo_function(message: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

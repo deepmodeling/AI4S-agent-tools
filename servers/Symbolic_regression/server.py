@@ -4,6 +4,7 @@ Symbolic Regression MCP Server using PySR.
 This server provides symbolic regression capabilities to discover mathematical expressions from data.
 """
 import argparse
+import os
 from mcp.server.fastmcp import FastMCP
 from src.symbolic_regression import run_symbolic_pysr
 
@@ -100,4 +101,6 @@ def symbolic_regression(csv_path: str, unary_operators: list) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

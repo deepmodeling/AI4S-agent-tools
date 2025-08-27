@@ -1,7 +1,7 @@
 {
 "name": "paper_search",
 "description": "Scientific literature search tool for arXiv papers",
-"author": "@Demo",
+"author": "@lhhhappy",
 "category": "research",
 "tools": ["search_papers", "extract_info"]
 }

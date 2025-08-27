@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "StructureGenerateServer": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/structure_generate",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "StructureGenerateServer",
+        "description": "Generate structures with ASE, CALYPSO, and CrystalFormer",
+        "author": "@A-LOST-WAPITI",
+        "category": "materials"
+      }
+    }
+  }
+}

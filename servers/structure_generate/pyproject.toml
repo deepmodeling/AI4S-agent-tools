@@ -1,0 +1,13 @@
+[project]
+name = "structure-generate"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ase>=3.26.0",
+    "bohr-agent-sdk>=0.1.101",
+    "bohrium-sdk>=0.13.0",
+    "numpy>=2.3.2",
+    "pymatgen>=2025.6.14",
+]

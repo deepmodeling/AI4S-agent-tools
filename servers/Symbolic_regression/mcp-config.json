@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "PYSR-Symbolic-Regression": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/Symbolic_regression",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "PYSR-Symbolic-Regression",
+        "description": "PYSR-Symbolic-Regression",
+        "author": "@lhhhappy",
+        "category": "physics"
+      }
+    }
+  }
+}

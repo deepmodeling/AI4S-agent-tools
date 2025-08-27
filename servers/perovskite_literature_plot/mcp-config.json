@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "perovskite_literature_plot": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/perovskite_literature_plot",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "perovskite_literature_plot",
+        "description": "Plot perovskite literature data",
+        "author": "Haoming Yan",
+        "category": "data"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "data_analysis": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/data_analysis",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "data_analysis",
+        "description": "A simplified tool for data analysis",
+        "author": "@nlz25",
+        "category": "data"
+      }
+    }
+  }
+}

@@ -18,7 +18,7 @@ Example MCP Server using the new simplified pattern.
 This demonstrates how to create a new AI4S tool with tools defined at module level.
 """
 import argparse
-
+import os
 from mcp.server.fastmcp import FastMCP
 
 def parse_args():
@@ -47,9 +47,11 @@ mcp = FastMCP("example",host=args.host,port=args.port)
 def demo_function(message: str) -> str:
     return f"Echo: {message}"
 
-
+# support sse and stdio
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)
 ```
 
 ### 3. Create Metadata File
@@ -60,9 +62,12 @@ if __name__ == "__main__":
     "description": "Brief description of what your tool does",
     "author": "@your-github-username",
     "category": "chemistry",
-    "tools":["tool1","tool2"]
+    "transport": ["sse", "stdio"],
+    "tools": ["tool1", "tool2"]
 }
 ```
+
+Note: If your server supports SSE mode, `mcp-config.json` will be auto-generated when the server runs. You can also manually create and upload this file if needed.
 
 ### 4. Update Dependencies
 ```toml
@@ -85,22 +90,36 @@ uv sync  # This creates uv.lock automatically
 
 ### 5. Test Your Tool
 ```bash
-# Install dependencies
-uv sync
+# Run server (uv will auto-install dependencies)
+uv run python server.py --port 50001
 
-# Run server
-python server.py --port 50001
-
-# Check it works
-use myinspector tool to Check it works
+# Test with myinspector tool or any MCP client
+# Visit: https://github.com/modelcontextprotocol/inspector
 ```
 
 ### 6. Submit PR
+1. Fork the repository on GitHub
+2. Create your feature branch:
 ```bash
-git add .
-git commit -m "feat: add YourToolName for molecular calculations"
-git push origin your-branch
+git checkout -b feat/add-your-tool-name
 ```
+3. Add your changes:
+```bash
+git add servers/your_tool_name/
+```
+4. Commit with clear message:
+```bash
+git commit -m "feat: add YourToolName for [describe what it does]"
+```
+5. Push to your fork:
+```bash
+git push origin feat/add-your-tool-name
+```
+6. Open a Pull Request on GitHub with:
+   - Clear title: "Add YourToolName - Brief description"
+   - Description of what your tool does
+   - Example usage
+   - Any special requirements
 
 ## 📦 Available Categories
 
@@ -115,6 +134,9 @@ Choose one when creating your tool (use exact string in metadata.json):
 - `data` - Processing, visualization, statistics
 - `machine-learning` - AI models for science
 - `battery` - Battery modeling, analysis and energy storage systems
+- `climate` - Climate modeling, weather prediction and atmospheric sciences
+- `medicine` - Medical research, drug discovery and healthcare applications 
+
 
 ## 🏗️ Project Structure
 
@@ -122,10 +144,11 @@ Choose one when creating your tool (use exact string in metadata.json):
 servers/
 ├── your_tool/ 
 │   ├── utils/            # Utility functions (optional)
-│   ├── server.py         # Your MCP server
-│   ├── metadata.json     # Tool metadata
-│   ├── pyproject.toml    # Dependencies
-│   ├── README.md         # Documentation (optional)
+│   ├── server.py         # Your MCP server (required)
+│   ├── metadata.json     # Tool metadata (required)
+│   ├── pyproject.toml    # Dependencies (required)
+│   ├── README.md         # Documentation (required)
+│   ├── mcp-config.json   # Auto-generated for sse mode or you
 │   └── uv.lock          # Lock file (auto-generated)
 ```
 
@@ -167,6 +190,14 @@ See: `servers/Paper_Search/` - ArXiv paper search
 - **Questions?** Open a GitHub issue
 - **Bugs?** Include error logs and steps to reproduce
 - **Ideas?** Start a discussion
+
+### 💬 Community
+
+Join our WeChat community group to discuss and collaborate:
+
+<div align="center">
+  <img src="data/image.png" alt="WeChat Community Group" width="200">
+</div>
 
 ## 🌟 Your Tool on the Showcase
 

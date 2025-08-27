@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "pubchem": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/pubchem",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "pubchem",
+        "description": "PubChem compound data retrieval",
+        "author": "@PhelanShao",
+        "category": "chemistry"
+      }
+    }
+  }
+}

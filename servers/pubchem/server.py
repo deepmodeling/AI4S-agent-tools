@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 
 import argparse
@@ -41,7 +42,9 @@ def download_structure(cid: str, format: str = 'sdf') -> str:
     return handle_tool_call("download_structure", {"cid": cid, "format": format})
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)
 
 
 

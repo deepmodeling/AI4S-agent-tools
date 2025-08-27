@@ -1,0 +1,17 @@
+{
+    "name": "StructureGenerateServer",
+    "description": "Generate structures with ASE, CALYPSO, and CrystalFormer",
+    "author": "@A-LOST-WAPITI",
+    "category": "materials",
+    "tools":[
+        "build_bulk_structure",
+        "make_supercell_structure",
+        "build_molecule_structure",
+        "add_cell_for_molecules",
+        "build_surface_slab",
+        "build_surface_adsorbate",
+        "build_surface_interface",
+        "generate_calypso_structures",
+        "generate_crystalformer_structures"
+    ]
+}

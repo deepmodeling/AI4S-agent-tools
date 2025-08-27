@@ -1,0 +1,157 @@
+{
+  "contributors": [
+    {
+      "author": "@SchrodingersCattt",
+      "collections": [
+        "CompositionDART",
+        "DPACalculatorServer",
+        "DPComboServer"
+      ],
+      "collections_count": 3,
+      "tools_count": 21,
+      "categories": [
+        "materials"
+      ]
+    },
+    {
+      "author": "@ahxbcn",
+      "collections": [
+        "ABACUS"
+      ],
+      "collections_count": 1,
+      "tools_count": 13,
+      "categories": [
+        "materials"
+      ]
+    },
+    {
+      "author": "@A-LOST-WAPITI",
+      "collections": [
+        "StructureGenerateServer"
+      ],
+      "collections_count": 1,
+      "tools_count": 9,
+      "categories": [
+        "materials"
+      ]
+    },
+    {
+      "author": "@liuyuxiang92",
+      "collections": [
+        "SuperconductorServer",
+        "ThermoelectricMaterialsServer"
+      ],
+      "collections_count": 2,
+      "tools_count": 9,
+      "categories": [
+        "materials"
+      ]
+    },
+    {
+      "author": "@Rasic2",
+      "collections": [
+        "CatalysisMCP"
+      ],
+      "collections_count": 1,
+      "tools_count": 3,
+      "categories": [
+        "chemistry"
+      ]
+    },
+    {
+      "author": "@Junshang Zhang",
+      "collections": [
+        "HEA_extractTool",
+        "HEA_predictTool"
+      ],
+      "collections_count": 2,
+      "tools_count": 3,
+      "categories": [
+        "machine-learning",
+        "research"
+      ]
+    },
+    {
+      "author": "@lhhhappy",
+      "collections": [
+        "PYSR-Symbolic-Regression",
+        "paper_search"
+      ],
+      "collections_count": 2,
+      "tools_count": 3,
+      "categories": [
+        "physics",
+        "research"
+      ]
+    },
+    {
+      "author": "Haoming Yan",
+      "collections": [
+        "perovskite_literature_plot"
+      ],
+      "collections_count": 1,
+      "tools_count": 3,
+      "categories": [
+        "data"
+      ]
+    },
+    {
+      "author": "@felix5572",
+      "collections": [
+        "deepmd_docs_rag"
+      ],
+      "collections_count": 1,
+      "tools_count": 2,
+      "categories": [
+        "materials"
+      ]
+    },
+    {
+      "author": "marvcks",
+      "collections": [
+        "orca_tools"
+      ],
+      "collections_count": 1,
+      "tools_count": 2,
+      "categories": [
+        "chemistry"
+      ]
+    },
+    {
+      "author": "@PhelanShao",
+      "collections": [
+        "pubchem"
+      ],
+      "collections_count": 1,
+      "tools_count": 2,
+      "categories": [
+        "chemistry"
+      ]
+    },
+    {
+      "author": "@nlz25",
+      "collections": [
+        "data_analysis"
+      ],
+      "collections_count": 1,
+      "tools_count": 1,
+      "categories": [
+        "data"
+      ]
+    },
+    {
+      "author": "2043899742@qq.com",
+      "collections": [
+        "matbench_property_prediction"
+      ],
+      "collections_count": 1,
+      "tools_count": 1,
+      "categories": [
+        "materials"
+      ]
+    }
+  ],
+  "total_contributors": 13,
+  "total_collections": 18,
+  "total_tools": 72
+}

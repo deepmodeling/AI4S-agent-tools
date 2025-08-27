@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "CompositionDART": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/CompositionDART",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "CompositionDART",
+        "description": "Composition Optimization via DPA-based Adaptive Refinement Targeting (DART) for materials discovery.",
+        "author": "@SchrodingersCattt",
+        "category": "materials"
+      }
+    }
+  }
+}

@@ -354,4 +354,6 @@ def analyze_csv_data(csv_content: str, target_column: str) -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

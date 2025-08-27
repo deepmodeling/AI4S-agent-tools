@@ -67,8 +67,8 @@ args = parse_args()
 # Initialize MCP server
 mcp = CalculationMCPServer(
     "ThermoelectricMaterialsServer",
-    host="0.0.0.0",
-    port=50001
+    host=args.host,
+    port=args.port
 )
 
 # ====== Tool 1: Predict Material Thermoelectronic Properties ======
@@ -1201,6 +1201,6 @@ def screen_thermoelectric_candidate(
 # ====== Run Server ======
 
 if __name__ == "__main__":
-    logging.info("Starting ThermoelectricMaterialsServer on port 50001...")
-    mcp.run(transport="sse")
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)
 

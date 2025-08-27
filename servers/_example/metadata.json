@@ -2,6 +2,7 @@
     "name": "ExampleTool",
     "description": "Example AI4S tool demonstrating the minimal pattern",
     "author": "@example-author",
-    "category": "General Tools",
-    "tools": ["example_calculatior", "demo_function"]
+    "category": "general",
+    "transport": ["sse", "stdio"],
+    "tools": ["example_calculation", "demo_function"]
 }

@@ -925,6 +925,7 @@ def predict_superconductor_Tc(
 # ====== Run Server ======
 
 if __name__ == "__main__":
-    logging.info("Starting SuperconductorServer on port 50002...")
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)
 

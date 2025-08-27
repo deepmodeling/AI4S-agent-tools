@@ -12,8 +12,9 @@ import shutil
 import glob
 import pandas as pd
 import json
+import argparse
 
-from dp.agent.server import CalculationMCPServer
+from mcp.server.fastmcp import FastMCP
 from deepmd.infer.deep_property import DeepProperty
 
 def parse_args():
@@ -213,5 +214,6 @@ def predict_matbench_properties(
 # ====== Run Server ======
 
 if __name__ == "__main__":
-    logging.info("Starting MatbenchServer on port 50001...")
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "DPACalculatorServer": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/DPACalculator",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "DPACalculatorServer",
+        "description": "Deep Potential Agent for atomistic simulation",
+        "author": "@SchrodingersCattt",
+        "category": "materials"
+      }
+    }
+  }
+}
