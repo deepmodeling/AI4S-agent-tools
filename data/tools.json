@@ -253,15 +253,9 @@
       "start_command": "# SSE mode\ncd servers/DPACalculator && python server.py --port <PORT>\n# stdio mode\ncd servers/DPACalculator && MCP_TRANSPORT=stdio python server.py",
       "install_command": "cd servers/DPACalculator && uv sync",
       "tools": [
-        "build_bulk_structure",
-        "build_molecule_structure",
-        "build_surface_adsorbate",
-        "build_surface_interface",
-        "build_surface_slab",
         "calculate_elastic_constants",
         "calculate_phonon",
-        "make_supercell_structure",
-        "optimize_crystal_structure",
+        "optimize_structure",
         "run_molecular_dynamics",
         "run_neb"
       ]

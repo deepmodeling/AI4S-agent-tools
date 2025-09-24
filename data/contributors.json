@@ -1,19 +1,6 @@
 {
   "contributors": [
     {
-      "author": "@SchrodingersCattt",
-      "collections": [
-        "CompositionDART",
-        "DPACalculatorServer",
-        "DPComboServer"
-      ],
-      "collections_count": 3,
-      "tools_count": 21,
-      "categories": [
-        "materials"
-      ]
-    },
-    {
       "author": "@54yyyu",
       "collections": [
         "Zotero"
@@ -46,6 +33,19 @@
       "tools_count": 17,
       "categories": [
         "biology"
+      ]
+    },
+    {
+      "author": "@SchrodingersCattt",
+      "collections": [
+        "CompositionDART",
+        "DPACalculatorServer",
+        "DPComboServer"
+      ],
+      "collections_count": 3,
+      "tools_count": 15,
+      "categories": [
+        "materials"
       ]
     },
     {
@@ -221,5 +221,5 @@
   ],
   "total_contributors": 19,
   "total_collections": 26,
-  "total_tools": 133
+  "total_tools": 127
 }
