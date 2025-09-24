@@ -1,15 +1,11 @@
-import glob
 import logging
 import os
-import sys
 from pathlib import Path
-from typing import Literal, Optional, Tuple, TypedDict, List, Dict, Union
-import sys
+from typing import Optional, TypedDict, List, Dict
 import argparse
 
 import numpy as np
 from ase import Atoms, io, units
-from ase.build import add_adsorbate, add_vacuum, bulk, molecule, surface, stack
 from ase.constraints import ExpCellFilter
 from ase.io import read, write
 from ase.md.andersen import Andersen
@@ -22,7 +18,6 @@ from ase.md.velocitydistribution import (MaxwellBoltzmannDistribution,
 from ase.md.verlet import VelocityVerlet
 from ase.mep import NEB, NEBTools
 from ase.optimize import BFGS
-from ase.optimize.precon import Exp
 from deepmd.calculator import DP
 from dp.agent.server import CalculationMCPServer
 from phonopy import Phonopy
