@@ -31,7 +31,7 @@ dependencies = [
     "bohr-agent-sdk>=0.1.101",
     "jsonpickle>=4.1.1",
     "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox",
-    "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox"
+    "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env"
 ]
 
 [project.optional-dependencies]
