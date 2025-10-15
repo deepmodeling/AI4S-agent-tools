@@ -17,3 +17,5 @@ RUN uv sync
 # Install the package in development mode to make it importable
 RUN uv pip install -e .
 RUN uv clean
+
+RUN python -c "import comp_dart; print('Successfully imported comp_dart')"
