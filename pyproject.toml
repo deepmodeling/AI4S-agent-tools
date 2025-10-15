@@ -18,6 +18,7 @@ dependencies = [
     "seekpath>=2.0.1",
     "torchaudio",
     "torchvision",
+    "torch==2.7.0",
     "tensorflow==2.19.0",
     "deepmd-kit==3.1.0",  
     "numpy==1.26.4",
