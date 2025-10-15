@@ -1,4 +1,4 @@
-FROM registry.dp.tech/dptech/ubuntu:22.04-py3.10-irkernel-r4.4.1
+FROM registry.dp.tech/dptech/ubuntu:ubuntu24.04-py3.12
 
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Asia/Shanghai
@@ -15,7 +15,7 @@ WORKDIR /mcp_server/comp-dart-gitlab
 
 RUN uv sync
 # Install the package in development mode to make it importable
-# RUN uv pip install .
+RUN pip install .
 RUN uv clean
 
 RUN python -c "import comp_dart; print('Successfully imported comp_dart')"
