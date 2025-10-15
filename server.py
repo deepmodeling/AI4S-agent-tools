@@ -217,54 +217,73 @@ def parse_constraints(constraints_str):
                 # Handle sum constraints
                 elements_part = constraint[constraint.find('(')+1:constraint.find(')')]
                 elements = [e.strip() for e in elements_part.split('+')]
-                condition = constraint[constraint.find(')')+1]
-                value = float(constraint[constraint.find(')')+2:])
-                constraints[tuple(elements)] = f"{condition}{value}"
+                # Extract operator and value
+                rest = constraint[constraint.find(')')+1:].strip()
+                if rest:
+                    operator = rest[0]
+                    value = float(rest[1:])
+                    constraints[tuple(elements)] = f"{operator}{value}"
             else:
                 # Handle single element constraints
                 if '<' in constraint:
                     element, condition = constraint.split('<')
-                    constraints[element.strip()] = f"<{condition}"
+                    constraints[element.strip()] = f"<{condition.strip()}"
                 elif '>' in constraint:
                     element, condition = constraint.split('>')
-                    constraints[element.strip()] = f">{condition}"
+                    constraints[element.strip()] = f">{condition.strip()}"
                 elif '=' in constraint:
                     element, condition = constraint.split('=')
-                    constraints[element.strip()] = f"={condition}"
+                    constraints[element.strip()] = f"={condition.strip()}"
     return constraints
 
 
 def apply_constraints(compositions, elements, constraints):
-    modified_compositions = compositions.copy()
+    # Convert compositions to numpy array if it's not already
+    modified_compositions = np.array(compositions).copy()
     
     # First handle sum constraints
     for elements_tuple, condition_str in constraints.items():
         if isinstance(elements_tuple, tuple):
-            indices = [elements.index(e) for e in elements_tuple]
-            current_sum = sum(modified_compositions[i] for i in indices)
-            condition, value = condition_str[0], float(condition_str[1:])
+            # Find indices for each element in the tuple
+            indices = []
+            for e in elements_tuple:
+                try:
+                    idx = elements.index(e)
+                    indices.append(idx)
+                except ValueError:
+                    # Element not found in elements list, skip this constraint
+                    continue
             
-            if condition == '<' and current_sum > value:
-                scale = value / current_sum
-                for i in indices:
-                    modified_compositions[i] *= scale
+            if indices:  # Only apply if we found matching elements
+                current_sum = np.sum(modified_compositions[indices])
+                condition, value = condition_str[0], float(condition_str[1:])
+                
+                if condition == '<' and current_sum > value:
+                    scale = value / current_sum
+                    modified_compositions[indices] *= scale
                     
     # Then handle single element constraints
     for element, condition_str in constraints.items():
         if isinstance(element, str):
-            i = elements.index(element)
-            condition, value = condition_str[0], float(condition_str[1:])
-            
-            if condition == '<' and modified_compositions[i] > value:
-                modified_compositions[i] = value
-            if condition == '>' and modified_compositions[i] < value:
-                modified_compositions[i] = value
-            if condition == '=' and modified_compositions[i]!= value:
-                modified_compositions[i] = value
+            try:
+                i = elements.index(element)
+                condition, value = condition_str[0], float(condition_str[1:])
+                
+                if condition == '<' and modified_compositions[i] > value:
+                    modified_compositions[i] = value
+                elif condition == '>' and modified_compositions[i] < value:
+                    modified_compositions[i] = value
+                elif condition == '=' and abs(modified_compositions[i] - value) > 1e-10:
+                    modified_compositions[i] = value
+            except ValueError:
+                # Element not found in elements list, skip this constraint
+                continue
             
     # Renormalize
     modified_compositions = np.clip(modified_compositions, 0, 1)
-    modified_compositions /= np.sum(modified_compositions)
+    sum_compositions = np.sum(modified_compositions)
+    if sum_compositions > 0:
+        modified_compositions /= sum_compositions
     return modified_compositions
 
 
@@ -301,11 +320,12 @@ def mk_template_supercell(packing: str):
         raise ValueError(f"{packing} not supported")
 
 def normalize_composition(composition: list, total: int) -> list:
-    if np.any(composition) == False or total <= 0:
+    composition = np.array(composition)
+    if (not np.any(composition)) or total <= 0:
         print("Warning: Invalid input. Returning None.")
         return None
 
-    total_composition = sum(composition)
+    total_composition = np.sum(composition)
     if total_composition == 0:
         print("Warning: Composition is all zeros. Returning None.")
         return None
@@ -556,14 +576,20 @@ class GeneticAlgorithm:
 
             # Normalize to ensure mole fractions sum to 1
             individual = np.array(individual)
-            individual = individual / np.sum(individual)
+            individual_sum = np.sum(individual)
+            if individual_sum > 0:
+                individual = individual / individual_sum
             manipulated_population.append(individual)
 
         # If the population size is greater than initial population size, add random compositions
         if population_size > len(manipulated_population):
             logging.info(f"Population size {population_size} is greater than initial population size {len(manipulated_population)}.")
             remaining_size = population_size - len(manipulated_population)
-            manipulated_population.extend([self.random_composition() for _ in range(remaining_size)])
+            for _ in range(remaining_size):
+                random_comp = self.random_composition()
+                if self.constraints:
+                    random_comp = apply_constraints(random_comp, self.elements, self.constraints)
+                manipulated_population.append(random_comp)
 
         # If the population size is less than or equal to the initial population size, truncate it
         elif population_size < len(manipulated_population):
@@ -576,7 +602,8 @@ class GeneticAlgorithm:
         logging.info("Initializing population.")
         population = [self.random_composition() for _ in range(population_size)]
         if self.constraints:
-            population = apply_constraints(population, self.elements, self.constraints)
+            # Apply constraints to each individual in the population
+            population = [apply_constraints(ind, self.elements, self.constraints) for ind in population]
         if not population:
             raise ValueError("Population initialization failed: population is empty.")
         return population
@@ -589,17 +616,35 @@ class GeneticAlgorithm:
             molar_comp = apply_constraints(molar_comp, self.elements, self.constraints)
         return molar_comp
 
-    def evaluate_fitness(self, comp, generation=None, get_density_mode='weighted_avg'):
+    def evaluate_fitness(self, comp, generation=None):
         logging.info(f"Evaluating fitness for composition: {comp}")
+        # 应用约束条件（如果存在）
         if self.constraints:
-            # Apply constraints in mole fraction
-            molar_comp = apply_constraints(comp, self.elements, self.constraints)
-            return target(self.elements, molar_comp, generation=generation,
-                         a=self.a, b=self.b, c=self.c, d=self.d,
-                         get_density_mode=self.get_density_mode, tec_models=self.tec_models).get("target", float('inf'))
-        return target(self.elements, comp, generation=generation,
-                     a=self.a, b=self.b, c=self.c, d=self.d,
-                     get_density_mode=self.get_density_mode, tec_models=self.tec_models).get("target", float('inf'))
+            constrained_comp = apply_constraints(comp, self.elements, self.constraints)
+            result = target(
+                self.elements, 
+                constrained_comp, 
+                generation=generation,
+                a=self.a, 
+                b=self.b, 
+                c=self.c, 
+                d=self.d,
+                get_density_mode=self.get_density_mode, 
+                tec_models=self.tec_models
+            )
+        else:
+            result = target(
+                self.elements, 
+                comp, 
+                generation=generation,
+                a=self.a, 
+                b=self.b, 
+                c=self.c, 
+                d=self.d,
+                get_density_mode=self.get_density_mode, 
+                tec_models=self.tec_models
+            )
+        return result.get("target", float('inf'))
 
     def select_parents(self):
         logging.info("Selecting parents using mode: %s", self.selection_mode)
@@ -620,7 +665,13 @@ class GeneticAlgorithm:
         # Ensure probabilities sum to 1 and handle any size mismatches
         if len(probabilities) != len(self.population):
             probabilities = np.ones(len(self.population)) / len(self.population)
-        probabilities = probabilities / (np.sum(probabilities) + 1e-10)  # Add small epsilon to prevent division by zero
+        # Fix the sum calculation to avoid the array truth value error
+        probabilities_sum = np.sum(probabilities)
+        if probabilities_sum > 0:
+            probabilities = probabilities / probabilities_sum  # Normalize
+        else:
+            # If all probabilities are zero, assign uniform probabilities
+            probabilities = np.ones(len(self.population)) / len(self.population)
         # Ensure we have the right size
         indices = np.arange(len(self.population))
         selected_indices = np.random.choice(indices, size=len(self.population), p=probabilities)
@@ -639,12 +690,20 @@ class GeneticAlgorithm:
     def crossover(self, parent1, parent2):
         logging.info("Crossover.")
         if np.random.rand() < self.crossover_rate:
-            point = np.random.randint(1, len(self.elements) - 1)
+            # Make sure we don't create crossover point at the edges
+            if len(self.elements) <= 2:
+                point = 1
+            else:
+                point = np.random.randint(1, len(self.elements) - 1)
             offspring1 = np.concatenate((parent1[:point], parent2[point:]))
             offspring2 = np.concatenate((parent2[:point], parent1[point:]))
             # Normalize offspring
-            offspring1 /= np.sum(offspring1)
-            offspring2 /= np.sum(offspring2)
+            sum1 = np.sum(offspring1)
+            sum2 = np.sum(offspring2)
+            if sum1 > 0:
+                offspring1 /= sum1
+            if sum2 > 0:
+                offspring2 /= sum2
             if self.constraints:
                 # Apply constraints in mole fraction
                 offspring1 = apply_constraints(offspring1, self.elements, self.constraints)
@@ -654,16 +713,26 @@ class GeneticAlgorithm:
 
     def mutate(self, individual, stepsize=1.0):
         logging.info("Mutating.")
+        individual = np.array(individual).copy()  # Ensure we're working with a copy
         if np.random.rand() < self.mutation_rate:
             for _ in range(np.random.randint(1, len(self.elements) // 2 + 1)):
                 point = np.random.randint(len(self.elements))
-                individual[point] += np.random.uniform(0.01, stepsize)
+                individual[point] += np.random.uniform(-stepsize, stepsize)  # Allow both increases and decreases
                 individual = np.clip(individual, a_min=0, a_max=1)
-                individual /= np.sum(individual)
+                # Renormalize after mutation
+                individual_sum = np.sum(individual)
+                if individual_sum > 0:
+                    individual /= individual_sum
             if self.constraints:
                 # Apply constraints in mole fraction
                 individual = apply_constraints(individual, self.elements, self.constraints)
+        # Always ensure values are in valid range and normalized
         individual = np.clip(individual, a_min=0, a_max=1)
+        individual_sum = np.sum(individual)
+        if individual_sum > 0:
+            individual /= individual_sum
+        if self.constraints:
+            individual = apply_constraints(individual, self.elements, self.constraints)
         return individual
 
     def evolve(self):
@@ -671,7 +740,7 @@ class GeneticAlgorithm:
         for generation in range(self.generations):
             logging.info(f"Generation {generation}")
             selected_population = self.select_parents()
-            if len(selected_population) % 2!= 0:
+            if len(selected_population) % 2 != 0:
                 selected_population.pop()
             new_population = []
             for i in range(0, len(selected_population), 2):
@@ -861,7 +930,7 @@ def run_ga(
         mutation_rate=mutation_rate,
         selection_mode=selection_mode,
         init_population=init_population,
-        constraints=constraints,
+        constraints=constraints if constraints else {},  # Ensure constraints is always a dict
         a=a, b=b, c=c, d=d,
         get_density_mode=get_density_mode,
         tec_models=tec_models)
@@ -885,11 +954,11 @@ def run_ga(
     print("Detailed Results:", detailed_results)
     
     return {
-        "best_individual": best_individual,
-        "pred_tec_mean": detailed_results["pred_tec_mean"],
-        "pred_tec_std": detailed_results["pred_tec_std"], 
-        "pred_density_mean": detailed_results["pred_density_mean"],
-        "pred_density_std": detailed_results["pred_density_std"]
+        "best_individual": [float(x) for x in best_individual],  # Ensure we return standard Python floats
+        "pred_tec_mean": float(detailed_results["pred_tec_mean"]),
+        "pred_tec_std": float(detailed_results["pred_tec_std"]), 
+        "pred_density_mean": float(detailed_results["pred_density_mean"]),
+        "pred_density_std": float(detailed_results["pred_density_std"])
     }
 
 
