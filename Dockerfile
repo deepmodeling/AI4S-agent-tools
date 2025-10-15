@@ -1,4 +1,4 @@
-FROM registry.dp.tech/dptech/ubuntu:ubuntu24.04-py3.12
+FROM registry.dp.tech/dptech/deepmd-kit:3.1.0-cuda12.1
 
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Asia/Shanghai
