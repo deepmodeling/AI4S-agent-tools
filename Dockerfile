@@ -15,7 +15,10 @@ WORKDIR /mcp_server/comp-dart-gitlab
 
 RUN uv sync
 # Install the package in development mode to make it importable
-RUN uv pip install -e .
+# RUN uv pip install .
 RUN uv clean
 
 RUN python -c "import comp_dart; print('Successfully imported comp_dart')"
+RUN python -c "import torch; print('Successfully imported torch')"
+RUN uv run python -c "import comp_dart; print('Successfully imported comp_dart')"
+RUN uv run python -c "import torch; print('Successfully imported torch')"
