@@ -7,7 +7,7 @@ name = "comp_dart"
 version = "0.1.0"
 description = "Deep Potential Agent for atomistic simulation"
 readme = "README.md"
-requires-python = "==3.12.8"
+requires-python = ">=3.12"
 
 dependencies = [
     "tqdm",
