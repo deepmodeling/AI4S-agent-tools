@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "dart"
 version = "0.1.0"
@@ -29,3 +33,22 @@ dependencies = [
     "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox",
     "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox"
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.2.0",
+    "black>=21.0.0",
+    "flake8>=3.9.0",
+]
+docs = [
+    "sphinx>=4.0.0",
+]
+
+[project.scripts]
+comp-dart = "comp_dart.server:main"
+
+[tool.setuptools.packages.find]
+include = ["comp_dart*", "comp_dart.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.cif", "*.pt", "*.pth"]
