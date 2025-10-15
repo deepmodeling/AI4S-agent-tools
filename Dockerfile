@@ -15,5 +15,5 @@ WORKDIR /mcp_server/comp-dart-gitlab
 
 RUN uv sync
 # Install the package in development mode to make it importable
-RUN pip install -e .
+RUN uv pip install -e .
 RUN uv clean
