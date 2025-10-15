@@ -4,45 +4,26 @@ import glob
 import json
 import logging
 import os
-import pickle
-import sys
-import time
-import warnings
-import zipfile
 import tarfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import zipfile
 from pathlib import Path
-from typing import Literal, Optional, Tuple, TypedDict, List, Dict, Union
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict, Union
 
-import ase
+import dpdata
 import matplotlib.pyplot as plt
 import numpy as np
-from ase.constraints import ExpCellFilter
-from ase.optimize import (
-    BFGS,
-    FIRE,
-    LBFGS,
-    LBFGSLineSearch,
-    BFGSLineSearch,
-    MDMin,
-)
-import dpdata
-from deepmd.pt.infer.deep_eval import DeepProperty
 from deepmd.calculator import DP as DPCalculator
+from deepmd.pt.infer.deep_eval import DeepProperty
 from dp.agent.server import CalculationMCPServer
 from pymatgen.core import Structure
-from pymatgen.core.structure import Structure, Element, Lattice, Molecule
-from pymatgen.io.ase import AseAtomsAdaptor
+from pymatgen.core.structure import Element, Lattice, Molecule, Structure
 from tqdm import tqdm
 
-OPTIMIZERS = {
-    "FIRE": FIRE,
-    "BFGS": BFGS,
-    "LBFGS": LBFGS,
-    "LBFGSLineSearch": LBFGSLineSearch,
-    "MDMin": MDMin,
-    "BFGSLineSearch": BFGSLineSearch,
-}
+TARGET_1_MEAN = 9.76186694677871
+TARGET_1_STD = 4.3042156360248125
+TARGET_2_MEAN = 8331.903892865434
+TARGET_2_STD = 182.21803336559455
+
 
 
 atomic_mass_file = "/mcp_server/comp-dart-gitlab/constant/atomic_mass.json"
@@ -52,159 +33,6 @@ with open(density_file, 'r') as f:
 with open(atomic_mass_file, 'r') as atoms_mass_file:
     atomic_mass = json.load(atoms_mass_file)
 
-
-class Relaxer:
-    def __init__(self, calculator, optimizer: Optional[str] = "BFGS", 
-                 relax_cell: Optional[bool] = True, isotropic_cell: Optional[bool] = True, 
-                 timeout: Optional[float] = 3600):
-        self.calculator = calculator
-        self.optimizer = OPTIMIZERS[optimizer]
-        self.relax_cell = relax_cell
-        self.ase_adaptor = AseAtomsAdaptor()
-        self.isotropic_cell = isotropic_cell
-        self.timeout = timeout
-        self.logger = logging.getLogger(__name__)
-  
-    def relax(self, atoms, fmax: float, steps: int, traj_file: str = None):
-        start_time = time.time()
-        
-        if isinstance(atoms, (Structure, Molecule)):
-            atoms = self.ase_adaptor.get_atoms(atoms)
-        
-        atoms.set_calculator(self.calculator)
-        obs = TrajectoryObserver(atoms)
-        
-        if self.relax_cell:
-            atoms = ExpCellFilter(atoms, hydrostatic_strain=True)
-            
-        opt = self.optimizer(atoms)
-        opt.attach(obs)
-        
-        try:
-            converged = False
-            for step in opt.irun(fmax=fmax, steps=steps):
-                current_time = time.time()
-                if current_time - start_time > self.timeout:
-                    self.logger.warning(f"Optimization timed out after {self.timeout} seconds")
-                    break
-                    
-                if step >= steps:
-                    self.logger.warning(f"Optimization reached maximum steps ({steps}) without convergence")
-                    break
-                    
-                if opt.converged():
-                    converged = True
-                    self.logger.info("Optimization converged successfully")
-                    break
-                    
-            if not converged:
-                if current_time - start_time > self.timeout:
-                    self.logger.error(f"Structure optimization failed: Timeout after {self.timeout} seconds")
-                else:
-                    self.logger.error(f"Structure optimization failed: Did not converge within {steps} steps")
-                    
-        except Exception as e:
-            self.logger.error(f"Structure optimization failed with error: {str(e)}")
-            raise
-            
-        obs()
-        if traj_file is not None:
-            obs.save(traj_file)
-            
-        if isinstance(atoms, ExpCellFilter):
-            atoms = atoms.atoms
-            
-        return {
-            "final_structure": self.ase_adaptor.get_structure(atoms),
-            "trajectory": obs,
-            "converged": converged,
-            "optimization_time": time.time() - start_time
-        }
-
-
-class TrajectoryObserver:
-    """
-    Trajectory observer is a hook in the relaxation process that saves the
-    intermediate structures
-    """
-
-    def __init__(self, atoms: ase.Atoms):
-        """
-        Args:
-            atoms (Atoms): the structure to observe
-        """
-        self.atoms = atoms
-        self.energies: list[float] = []
-        self.forces: list[np.ndarray] = []
-        self.stresses: list[np.ndarray] = []
-        self.atom_positions: list[np.ndarray] = []
-        self.cells: list[np.ndarray] = []
-
-    def __call__(self):
-        """
-        The logic for saving the properties of an Atoms during the relaxation
-        Returns:
-        """
-        self.energies.append(self.compute_energy())
-        self.forces.append(self.atoms.get_forces())
-        self.stresses.append(self.atoms.get_stress())
-        self.atom_positions.append(self.atoms.get_positions())
-        self.cells.append(self.atoms.get_cell()[:])
-
-    def compute_energy(self) -> float:
-        """
-        calculate the energy, here we just use the potential energy
-        Returns:
-        """
-        energy = self.atoms.get_potential_energy()
-        return energy
-
-    def save(self, filename: str):
-        """
-        Save the trajectory to file
-        Args:
-            filename (str): filename to save the trajectory
-        Returns:
-        """
-        with open(filename, "wb") as f:
-            pickle.dump(
-                {
-                    "energy": self.energies,
-                    "forces": self.forces,
-                    "stresses": self.stresses,
-                    "atom_positions": self.atom_positions,
-                    "cell": self.cells,
-                    "atomic_number": self.atoms.get_atomic_numbers(),
-                },
-                f,
-            )
-
-def relax_structure(ss: Structure, calculator: Union[DPCalculator, str]):
-    try:
-        relaxer = Relaxer(calculator, 'FIRE', relax_cell=True, timeout=3600)
-        result = relaxer.relax(ss, 1.0, 500, None)
-        
-        # Check if the structure converged
-        if result["converged"]:
-            return result["final_structure"]
-        else:
-            raise ValueError("Structure did not converge during relaxation.")
-        
-    except Exception as e:
-        logging.error(f"Error processing structure relaxation: {str(e)}")
-        raise
-
-def calculate_density(raw_structure: Structure, calculator: Union[DPCalculator, str]):
-    relaxed_structure = relax_structure(raw_structure, calculator)
-    total_mass = 0.0  # In atomic mass units (amu)
-    for site in relaxed_structure:  # Iterate through all sites in the structure
-        atomic_mass = site.specie.atomic_mass  # Get atomic mass of the element
-        total_mass += atomic_mass    
-    volume = relaxed_structure.volume
-    mass_g = total_mass * 1.66053907e-24  
-    volume_cm3 = volume * 1e-24
-    density = mass_g / volume_cm3 * 1000
-    return density
 
 
 # constraints
@@ -441,42 +269,31 @@ def target(
     struct_list = comp2struc(elements, compositions, packing=packing)
 
     ## TEC is original data, density is normalized data
-    pred_tec = [z_core(pred(m, s), mean=9.76186694677871, std=4.3042156360248125) for m in tec_models for s in tqdm(struct_list)]  # 
+    pred_tec = [z_core(pred(m, s), mean=TARGET_1_MEAN, std=TARGET_1_STD) for m in tec_models for s in tqdm(struct_list)]  # 
     pred_tec_mean = np.mean(pred_tec)
     pred_tec_std = np.std(pred_tec)
 
-    if get_density_mode == "relax":
-        assert calculator is not None, "calculator is not provided"
-        raw_pred_density = [calculate_density(s, calculator) for s in tqdm(struct_list)]
-        logging.info(f"raw_pred_density: {raw_pred_density}")
-        pred_density = [z_core(d, mean= 8331.903892865434, std=182.21803336559455) for d in raw_pred_density]
-    elif get_density_mode == "predict" or get_density_mode == "pred":
-        density_models = glob.glob('models/density*.pt')
-        density_models = (DeepProperty(model) for model in density_models)
-        pred_density = [pred(m, s) for m in density_models for s in tqdm(struct_list)]
-    elif get_density_mode == "weighted_avg":
-        density = 0
-        for i, e in enumerate(elements):
-            c = compositions[i]
-            density += c * densities_dict[e]
-        pred_density = [z_core(density, mean= 8331.903892865434, std=182.21803336559455)]
-    else:
-        raise ValueError(f"{get_density_mode} not supported, choose between relax, predict or weighted_avg")
+    density = 0
+    for i, e in enumerate(elements):
+        c = compositions[i]
+        density += c * densities_dict[e]
+    pred_density = [z_core(density, mean= TARGET_2_MEAN, std=TARGET_2_STD)]
+        
     pred_density_mean = np.mean(pred_density)
     pred_density_std = np.std(pred_density)
     target = a * (-1* pred_tec_mean) + b * pred_tec_std + c * (-1* pred_density_mean) + d * pred_density_std
 
     if generation is not None:
         logging.info(pred_density)
-        logging.info([norm2orig(den, mean= 8331.903892865434, std=182.21803336559455) for den in pred_density])
+        logging.info([norm2orig(den, mean= TARGET_2_MEAN, std=TARGET_2_STD) for den in pred_density])
         logging.info(
             f"""
             ====\n
             - Generation {generation}, 
-            - pred_tec_mean: {norm2orig(pred_tec_mean, mean=9.76186694677871, std=4.3042156360248125)},
-            - pred_density_mean: {norm2orig(pred_density_mean, mean= 8331.903892865434, std=182.21803336559455)},
-            - pred_tec_std: {np.std([norm2orig(tec, mean=9.76186694677871, std=4.3042156360248125) for tec in pred_tec])},
-            - pred_density_std: {np.std([norm2orig(den, mean= 8331.903892865434, std=182.21803336559455) for den in pred_density])},
+            - pred_tec_mean: {norm2orig(pred_tec_mean, mean=TARGET_1_MEAN, std=TARGET_1_STD)},
+            - pred_density_mean: {norm2orig(pred_density_mean, mean= TARGET_2_MEAN, std=TARGET_2_STD)},
+            - pred_tec_std: {np.std([norm2orig(tec, mean=TARGET_1_MEAN, std=TARGET_1_STD) for tec in pred_tec])},
+            - pred_density_std: {np.std([norm2orig(den, mean= TARGET_2_MEAN, std=TARGET_2_STD) for den in pred_density])},
             - target: {target}
             ----\n
             """)
@@ -485,10 +302,10 @@ def target(
         logging.info(
             f"""
             ====\n
-            - pred_tec_mean: {norm2orig(pred_tec_mean, mean=9.76186694677871, std=4.3042156360248125)},
-            - pred_density_mean: {norm2orig(pred_density_mean, mean= 8331.903892865434, std=182.21803336559455)},
-            - pred_tec_std: {np.std([norm2orig(tec, mean=9.76186694677871, std=4.3042156360248125) for tec in pred_density])},
-            - pred_density_std: {np.std([norm2orig(den, mean= 8331.903892865434, std=182.21803336559455) for den in pred_density])},
+            - pred_tec_mean: {norm2orig(pred_tec_mean, mean=TARGET_1_MEAN, std=TARGET_1_STD)},
+            - pred_density_mean: {norm2orig(pred_density_mean, mean= TARGET_2_MEAN, std=TARGET_2_STD)},
+            - pred_tec_std: {np.std([norm2orig(tec, mean=TARGET_1_MEAN, std=TARGET_1_STD) for tec in pred_density])},
+            - pred_density_std: {np.std([norm2orig(den, mean= TARGET_2_MEAN, std=TARGET_2_STD) for den in pred_density])},
             - target: {target}
             ----\n
             """)
@@ -496,10 +313,10 @@ def target(
     # Return detailed results
     return {
         "target": target,
-        "pred_tec_mean": norm2orig(pred_tec_mean, mean=9.76186694677871, std=4.3042156360248125),
-        "pred_tec_std": np.std([norm2orig(tec, mean=9.76186694677871, std=4.3042156360248125) for tec in pred_tec]),
-        "pred_density_mean": norm2orig(pred_density_mean, mean=8331.903892865434, std=182.21803336559455),
-        "pred_density_std": np.std([norm2orig(den, mean=8331.903892865434, std=182.21803336559455) for den in pred_density])
+        "pred_tec_mean": norm2orig(pred_tec_mean, mean=TARGET_1_MEAN, std=TARGET_1_STD),
+        "pred_tec_std": np.std([norm2orig(tec, mean=TARGET_1_MEAN, std=TARGET_1_STD) for tec in pred_tec]),
+        "pred_density_mean": norm2orig(pred_density_mean, mean=TARGET_2_MEAN, std=TARGET_2_STD),
+        "pred_density_std": np.std([norm2orig(den, mean=TARGET_2_MEAN, std=TARGET_2_STD) for den in pred_density])
     }
 
 
