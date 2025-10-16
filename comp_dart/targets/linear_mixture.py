@@ -67,13 +67,33 @@ class LinearMixtureTarget(Target):
             property_values = property_values[:len(composition)]
             
         # Convert to numpy arrays to ensure compatibility and avoid sequence multiplication errors
-        composition_array = np.array(composition)
-        property_array = np.array(property_values)
+        try:
+            composition_array = np.array(composition)
+            property_array = np.array(property_values)
+        except Exception as e:
+            raise ValueError(f"Failed to convert inputs to numpy arrays: {e}")
+        
+        # Additional validation to prevent std::bad_array_new_length errors
+        # Check for valid array dimensions
+        if composition_array.ndim != 1 or property_array.ndim != 1:
+            raise ValueError(f"Arrays must be 1-dimensional. Got shapes: composition={composition_array.shape}, properties={property_array.shape}")
+        
+        # Check for valid array sizes
+        if composition_array.size < 0 or property_array.size < 0:
+            raise ValueError(f"Arrays have invalid negative sizes: composition={composition_array.size}, properties={property_array.size}")
+        
+        # Check for reasonable array sizes (prevent extremely large arrays that might cause memory issues)
+        if composition_array.size > 1000000 or property_array.size > 1000000:
+            raise ValueError(f"Arrays are too large: composition={composition_array.size}, properties={property_array.size}")
         
         # Check that arrays have compatible shapes
         if composition_array.shape != property_array.shape:
             raise ValueError(f"Composition array shape {composition_array.shape} does not match property array shape {property_array.shape}")
             
+        # Check for valid numeric values
+        if not np.isfinite(composition_array).all() or not np.isfinite(property_array).all():
+            raise ValueError("Arrays contain invalid numeric values (NaN or Inf)")
+        
         value = np.sum(composition_array * property_array)
             
         return TargetResult(

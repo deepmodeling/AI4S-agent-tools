@@ -48,7 +48,6 @@ def run_ga(
     population_size: int,
     selection_mode: str,
     constraints: Optional[Dict[str, str]],
-    get_density_mode: str = "weighted_avg",
     target1_weight: float = 0.6,
     target1_std_weight: float = 0.2,
     target2_weight: float = 0.6,
@@ -148,6 +147,7 @@ def run_ga(
         dict with pred_target2_std (float): Predicted standard deviation of second target
     """
     # Convert constraint specifications to constraint objects
+    print(f"Elements: {elements}, Constraints: {constraints}, Init mode: {init_mode}, Init population: {init_population}, Population size: {population_size}, Selection mode: {selection_mode}")
     constraint_objects = []
     if constraints:
         for element, constraint_str in constraints.items():
