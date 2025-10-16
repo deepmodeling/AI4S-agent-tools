@@ -65,9 +65,9 @@ class LinearMixtureTarget(Target):
             # we would need to pass element names along with composition
             # For now, use only as many property values as we have composition values
             property_values = property_values[:len(composition)]
-            value = np.sum(composition * property_values)
+            value = np.sum(np.array(composition) * np.array(property_values))
         else:
-            value = np.sum(composition * property_values)
+            value = np.sum(np.array(composition) * np.array(property_values))
             
         return TargetResult(
             value=value,

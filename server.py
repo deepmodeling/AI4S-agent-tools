@@ -245,11 +245,7 @@ def run_ga(
                 "std": target1_std_result.value
             })
         except Exception as e:
-            print(f"Warning: Could not calculate target1 values: {e}")
-            target1_results.append({
-                "mean": 0.0,
-                "std": 0.0
-            })
+            raise ValueError(f"Could not calculate target1 values: {e}") from e
     else:
         target1_results.append({
             "mean": 0.0,
@@ -267,11 +263,7 @@ def run_ga(
                 "std": 0.0  # Linear mixture has no inherent std
             })
         except Exception as e:
-            print(f"Warning: Could not calculate target2 values: {e}")
-            target2_results.append({
-                "mean": 0.0,
-                "std": 0.0
-            })
+            raise ValueError(f"Could not calculate target2 values: {e}") from e
     else:
         target2_results.append({
             "mean": 0.0,
