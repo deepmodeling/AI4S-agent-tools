@@ -13,10 +13,10 @@ RUN mkdir -p /mcp_server/comp-dart-gitlab /root/.dpdispatcher/dp_cloud_server
 COPY . /mcp_server/comp-dart-gitlab
 WORKDIR /mcp_server/comp-dart-gitlab
 
-RUN uv sync
+# RUN uv sync
 # Install the package in development mode to make it importable
-# RUN pip install . 
-RUN uv clean
+RUN pip install . 
+# RUN uv clean
 
 RUN python -c "import comp_dart; print('Successfully imported comp_dart')"
 RUN python -c "import torch; print('Successfully imported torch')"

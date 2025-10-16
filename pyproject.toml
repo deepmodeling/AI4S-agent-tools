@@ -18,7 +18,6 @@ dependencies = [
     "seekpath>=2.0.1",
     "torchaudio",
     "torchvision",
-    "tensorflow==2.19.0",
     "deepmd-kit==3.1.0",  
     "numpy==1.26.4",
     "dpdata==0.2.25",
@@ -52,7 +51,4 @@ include = ["comp_dart*", "comp_dart.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.cif", "*.pt", "*.pth"]
-
-[tool.setuptools.data-files]
-"constant" = ["constant/*.json"]
-"struct_template" = ["struct_template/*"]
+"comp_dart" = ["../constant/*.json", "../struct_template/*"]
