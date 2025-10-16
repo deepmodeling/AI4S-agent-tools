@@ -52,3 +52,7 @@ include = ["comp_dart*", "comp_dart.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.cif", "*.pt", "*.pth"]
+
+[tool.setuptools.data-files]
+"constant" = ["constant/*.json"]
+"struct_template" = ["struct_template/*"]
