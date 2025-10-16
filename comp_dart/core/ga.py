@@ -267,6 +267,45 @@ class GeneticAlgorithm:
             
         return individual
 
+    def evaluate_population_targets(self, population: List[np.ndarray]) -> List[Dict]:
+        """
+        Evaluate all targets for each individual in the population.
+        
+        Args:
+            population: List of compositions to evaluate
+            
+        Returns:
+            List of dictionaries with target results for each individual
+        """
+        results = []
+        for individual in population:
+            # Apply constraints if they exist
+            if self.constraints:
+                constrained_comp = apply_constraints(individual, self.elements, self.constraints)
+            else:
+                constrained_comp = individual
+                
+            # Generate structures if any target requires them
+            structures = None
+            for target in self.targets:
+                if target.requires_structure:
+                    structures = self.structure_generator.generate(constrained_comp, self.elements)
+                    break
+                    
+            # Evaluate all targets
+            target_results = {}
+            for i, target in enumerate(self.targets):
+                # Use structures if this target requires them, otherwise None
+                structure = structures[0] if structures and target.requires_structure else None
+                result = target.predict(constrained_comp, structure)
+                target_results[f"target_{i}"] = {
+                    "value": result.value,
+                    "uncertainty": result.uncertainty
+                }
+                
+            results.append(target_results)
+        return results
+
     def evolve(self) -> tuple:
         """
         Evolve the population for the specified number of generations.
@@ -301,12 +340,37 @@ class GeneticAlgorithm:
                 
             self.population = new_population
 
-            best_individual = max(self.population, key=self.evaluate_fitness)
-            best_score = self.evaluate_fitness(best_individual)
+            # Find best individual
+            fitness_scores = [self.evaluate_fitness(ind) for ind in self.population]
+            best_idx = np.argmax(fitness_scores)
+            best_individual = self.population[best_idx]
+            best_score = fitness_scores[best_idx]
             
             if self.constraints:
                 best_individual = apply_constraints(best_individual, self.elements, self.constraints)
                 
+            # Evaluate targets for best individual for detailed output
+            structures = None
+            for target in self.targets:
+                if target.requires_structure:
+                    structures = self.structure_generator.generate(best_individual, self.elements)
+                    break
+                    
+            target_values = []
+            for i, target in enumerate(self.targets):
+                structure = structures[0] if structures and target.requires_structure else None
+                result = target.predict(best_individual, structure)
+                target_values.append((f"target_{i}", result.value, result.uncertainty))
+            
+            # Print detailed generation information
+            print(f"=== Generation {generation} ===")
+            print(f"Elements: {self.elements}")
+            print(f"Best Composition: {[f'{x:.4f}' for x in best_individual]}")
+            for target_name, value, uncertainty in target_values:
+                print(f"{target_name}: {value:.6f} ± {uncertainty:.6f}")
+            print(f"Fitness Score: {best_score:.6f}")
+            print("-" * 40)
+            
             self.logger.info("Generation %d - Best Score: %f - Best Individual: %s", 
                            generation, best_score, best_individual)
                            
