@@ -7,14 +7,22 @@ from pathlib import Path
 from dp.agent.server import CalculationMCPServer
 
 # Import new modular components
+print("1")
 sys.path.append('/mcp_server/comp-dart-gitlab')
 from comp_dart.core.ga import GeneticAlgorithm
+print("1")
 from comp_dart.core.fitness import WeightedAggregator
+print("1")
 from comp_dart.core.constraints import ElementBoundConstraint, SumConstraint
+print("1")
 from comp_dart.targets.surrogate import SurrogateModelTarget
+print("1")
 from comp_dart.targets.linear_mixture import LinearMixtureTarget
+print("1")
 from comp_dart.generators.template_filler import TemplateLatticeFiller
+print("1")
 from comp_dart.api.endpoints import optimize_composition
+print("1")
 
 
 def parse_args():
