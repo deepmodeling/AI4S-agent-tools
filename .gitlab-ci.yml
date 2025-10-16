@@ -6,10 +6,3 @@ include:
 
 docker-build:
   stage: build
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: always
-    - if: $CI_COMMIT_BRANCH =~ /^dev\/.*$/
-      when: always
-    - if: $CI_COMMIT_BRANCH
-      when: manual
