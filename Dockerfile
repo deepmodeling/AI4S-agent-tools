@@ -15,10 +15,10 @@ WORKDIR /mcp_server/comp-dart-gitlab
 
 # RUN uv sync
 # Install the package in development mode to make it importable
-RUN pip install pymatgen ase pyyaml numpy==1.26.4  jsonpickle>=4.1.1
+RUN pip install pymatgen ase pyyaml numpy==1.26.4  jsonpickle>=4.1.1 bohr-agent-sdk>=0.1.101
 RUN pip install dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox
 RUN pip install bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env
-RUN pip install . --no-deps
+# RUN pip install . --no-deps
 # RUN uv clean
 
 RUN python -c "import comp_dart; print('Successfully imported comp_dart')"
