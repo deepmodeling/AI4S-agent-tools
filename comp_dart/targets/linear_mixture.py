@@ -65,9 +65,16 @@ class LinearMixtureTarget(Target):
             # we would need to pass element names along with composition
             # For now, use only as many property values as we have composition values
             property_values = property_values[:len(composition)]
-            value = np.sum(np.array(composition) * np.array(property_values))
-        else:
-            value = np.sum(np.array(composition) * np.array(property_values))
+            
+        # Convert to numpy arrays to ensure compatibility and avoid sequence multiplication errors
+        composition_array = np.array(composition)
+        property_array = np.array(property_values)
+        
+        # Check that arrays have compatible shapes
+        if composition_array.shape != property_array.shape:
+            raise ValueError(f"Composition array shape {composition_array.shape} does not match property array shape {property_array.shape}")
+            
+        value = np.sum(composition_array * property_array)
             
         return TargetResult(
             value=value,
