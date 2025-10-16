@@ -22,13 +22,14 @@ class Target(ABC):
         self.requires_structure = requires_structure
 
     @abstractmethod
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
         """
         Predict target property for a given composition.
         
         Args:
             composition: Array of composition values
             structure: Optional structure information
+            elements: Optional list of element symbols corresponding to composition values
             
         Returns:
             TargetResult with prediction value and metadata

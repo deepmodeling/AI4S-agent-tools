@@ -67,24 +67,33 @@ class DensityTarget(Target):
         self.linear_target = LinearMixtureTarget(self.element_densities, requires_structure=False) \
             if self.element_densities else None
 
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
         """
         Predict density using preferred methods.
         
         Args:
             composition: Array of composition values
             structure: Structure information (optional)
+            elements: List of element symbols corresponding to composition values (optional)
             
         Returns:
             TargetResult with predicted density value
         """
         # Calculate density using linear mixture method (as in original server.py)
         density = 0
-        elements = list(self.element_densities.keys())
-        for i, e in enumerate(elements):
-            if i < len(composition):
-                c = composition[i]
-                density += c * self.element_densities[e]
+        if elements is not None:
+            # Use provided element list
+            for i, e in enumerate(elements):
+                if e in self.element_densities and i < len(composition):
+                    c = composition[i]
+                    density += c * self.element_densities[e]
+        else:
+            # Use first N elements from element_densities, where N = len(composition)
+            element_list = list(self.element_densities.keys())
+            for i, e in enumerate(element_list):
+                if i < len(composition):
+                    c = composition[i]
+                    density += c * self.element_densities[e]
         
         # Normalize density using z-score (as in original server.py)
         normalized_density = z_core(density, mean=TARGET_2_MEAN, std=TARGET_2_STD)

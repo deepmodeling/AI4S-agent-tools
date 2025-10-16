@@ -197,16 +197,17 @@ class SurrogateModelTarget(Target):
         print(f"Loaded {len(models)} models")
         return models
 
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
         """
-        Predict target property using surrogate models.
+        Predict target property using surrogate model.
         
         Args:
             composition: Array of composition values
-            structure: Structure information for prediction (list of structures or single structure)
+            structure: Structure information (required for surrogate models)
+            elements: List of element symbols (optional)
             
         Returns:
-            TargetResult with prediction value and metadata
+            TargetResult with predicted value and uncertainty
         """
         if self.requires_structure and structure is None:
             raise ValueError("Structure is required for this target but not provided.")

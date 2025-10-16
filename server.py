@@ -264,7 +264,7 @@ def run_ga(
     if len(targets) >= 3:
         try:
             # Use third target for linear mixture (density) prediction
-            target2_result = targets[2].predict(composition)
+            target2_result = targets[2].predict(composition, elements=elements)
             
             target2_results.append({
                 "mean": target2_result.value,
