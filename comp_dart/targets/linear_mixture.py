@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import os
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from comp_dart.core.interfaces import Target, TargetResult
 
 # Use absolute path from project root
@@ -38,13 +38,14 @@ class LinearMixtureTarget(Target):
         self.element_properties = element_properties
         self.requires_structure = requires_structure
 
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
         """
         Predict property using linear mixture rule.
         
         Args:
             composition: Array of composition values
             structure: Structure information (optional)
+            elements: Optional list of element symbols corresponding to composition values
             
         Returns:
             TargetResult with predicted value
@@ -53,18 +54,28 @@ class LinearMixtureTarget(Target):
         if not self.element_properties:
             raise ValueError("No element properties available for linear mixture calculation")
         
-        # Calculate weighted average based on composition
-        property_values = list(self.element_properties.values())
-        elements = list(self.element_properties.keys())
-        
-        # If composition and element_properties have different lengths,
-        # we need to match them by element names
-        if len(composition) != len(elements):
-            # In this case, we would need to know the element names for the composition
-            # This is a simplified implementation - in a full implementation,
-            # we would need to pass element names along with composition
-            # For now, use only as many property values as we have composition values
-            property_values = property_values[:len(composition)]
+        # If elements parameter is provided, use it to match with element_properties
+        if elements is not None:
+            # Calculate weighted average based on provided elements and composition
+            property_values = []
+            for element in elements:
+                if element in self.element_properties:
+                    property_values.append(self.element_properties[element])
+                else:
+                    raise ValueError(f"Element {element} not found in element properties")
+        else:
+            # Original behavior - use all element properties
+            property_values = list(self.element_properties.values())
+            elements_list = list(self.element_properties.keys())
+            
+            # If composition and element_properties have different lengths,
+            # we need to match them by element names
+            if len(composition) != len(elements_list):
+                # In this case, we would need to know the element names for the composition
+                # This is a simplified implementation - in a full implementation,
+                # we would need to pass element names along with composition
+                # For now, use only as many property values as we have composition values
+                property_values = property_values[:len(composition)]
             
         # Convert to numpy arrays to ensure compatibility and avoid sequence multiplication errors
         try:
