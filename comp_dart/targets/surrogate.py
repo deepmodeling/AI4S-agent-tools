@@ -14,10 +14,6 @@ from dpdata import System
 from tqdm import tqdm
 
 
-# Constants for normalization
-TARGET_1_MEAN = 9.76186694677871
-TARGET_1_STD = 4.3042156360248125
-
 # Use absolute paths from project root
 CONSTANT_DIR = "/mcp_server/comp-dart-gitlab/constant"
 ATOMIC_MASS_FILE = os.path.join(CONSTANT_DIR, "atomic_mass.json")
@@ -97,8 +93,6 @@ class SurrogateModelTarget(Target):
     def __init__(self, 
                  model_path: Optional[str] = None,
                  models: Optional[List[Any]] = None, 
-                 mean: Optional[float] = None, 
-                 std: Optional[float] = None,
                  requires_structure: bool = True):
         """
         Initialize surrogate model target.
@@ -106,24 +100,16 @@ class SurrogateModelTarget(Target):
         Args:
             model_path: Path to directory or archive containing model files (.pt or .pth)
             models: List of pre-loaded surrogate models for prediction
-            mean: Optional mean for normalization
-            std: Optional standard deviation for normalization
             requires_structure: Whether this target requires structure generation
         """
         super().__init__(requires_structure=requires_structure)
         self.model_path = model_path
-        self.mean = mean or TARGET_1_MEAN
-        self.std = std or TARGET_1_STD
         
         # Load models if model_path is provided
         if model_path:
             self.models = self._load_models(model_path)
         else:
             self.models = models if models is not None else []
-        
-        # Validate that if mean or std is provided, both are provided
-        if (self.mean is not None) != (self.std is not None):
-            raise ValueError("Both mean and std must be provided together, or neither.")
 
     def _load_models(self, model_path: str) -> List[Any]:
         """
@@ -192,7 +178,7 @@ class SurrogateModelTarget(Target):
         print(f"Loaded {len(models)} models")
         return models
 
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None, apply_normalization: bool = False, raw_mean: Optional[float] = None, raw_std: Optional[float] = None) -> TargetResult:
         """
         Predict target property using surrogate model.
         
@@ -200,6 +186,9 @@ class SurrogateModelTarget(Target):
             composition: Array of composition values
             structure: Structure information (required for surrogate models)
             elements: List of element symbols (optional)
+            apply_normalization: Whether to apply z-score normalization to the result
+            raw_mean: Raw mean value for z-score normalization
+            raw_std: Raw standard deviation value for z-score normalization
             
         Returns:
             TargetResult with predicted value and uncertainty
@@ -222,9 +211,16 @@ class SurrogateModelTarget(Target):
                 try:
                     print(f"  Predicting structure {j+1}/{len(structures_to_process)}")
                     pred_value = pred(model, s)
-                    # Apply normalization
-                    normalized_pred = z_core(pred_value, mean=self.mean, std=self.std)
-                    predictions.append(normalized_pred)
+                    
+                    # Apply normalization if requested
+                    if apply_normalization:
+                        if raw_mean is None or raw_std is None:
+                            raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
+                        normalized_pred = z_core(pred_value, mean=raw_mean, std=raw_std)
+                        predictions.append(normalized_pred)
+                    else:
+                        predictions.append(pred_value)
+                        
                     print(f"  Prediction completed: {pred_value}")
                 except Exception as e:
                     print(f"Error: Could not make prediction with model: {e}")
@@ -245,8 +241,9 @@ class SurrogateModelTarget(Target):
             metadata={
                 "raw_predictions": predictions,
                 "normalization": {
-                    "mean": self.mean,
-                    "std": self.std
+                    "applied": apply_normalization,
+                    "raw_mean": raw_mean,
+                    "raw_std": raw_std
                 }
             }
         )

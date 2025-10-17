@@ -4,10 +4,6 @@ from typing import Dict, Optional, Any, List
 from comp_dart.core.interfaces import Target, TargetResult
 from comp_dart.targets.linear_mixture import LinearMixtureTarget
 
-# Constants for normalization
-TARGET_2_MEAN = 8331.903892865434
-TARGET_2_STD = 182.21803336559455
-
 # Load atomic mass and density data from constant files
 ATOMIC_MASS_FILE = "constant/atomic_mass.json"
 DENSITY_FILE = "constant/densities.json"
@@ -67,7 +63,7 @@ class DensityTarget(Target):
         self.linear_target = LinearMixtureTarget(self.element_densities, requires_structure=False) \
             if self.element_densities else None
 
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None, apply_normalization: bool = False, raw_mean: Optional[float] = None, raw_std: Optional[float] = None) -> TargetResult:
         """
         Predict density using preferred methods.
         
@@ -75,6 +71,9 @@ class DensityTarget(Target):
             composition: Array of composition values
             structure: Structure information (optional)
             elements: List of element symbols corresponding to composition values (optional)
+            apply_normalization: Whether to apply z-score normalization to the result
+            raw_mean: Raw mean value for z-score normalization
+            raw_std: Raw standard deviation value for z-score normalization
             
         Returns:
             TargetResult with predicted density value
@@ -95,8 +94,13 @@ class DensityTarget(Target):
                     c = composition[i]
                     density += c * self.element_densities[e]
         
-        # Normalize density using z-score (as in original server.py)
-        normalized_density = z_core(density, mean=TARGET_2_MEAN, std=TARGET_2_STD)
+        # Normalize density using z-score if requested
+        if apply_normalization:
+            if raw_mean is None or raw_std is None:
+                raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
+            normalized_density = z_core(density, mean=raw_mean, std=raw_std)
+        else:
+            normalized_density = density
         
         return TargetResult(
             value=normalized_density,
@@ -105,8 +109,9 @@ class DensityTarget(Target):
                 "raw_density": density,
                 "method_used": "linear_mixture",
                 "normalization": {
-                    "mean": TARGET_2_MEAN,
-                    "std": TARGET_2_STD
+                    "applied": apply_normalization,
+                    "raw_mean": raw_mean,
+                    "raw_std": raw_std
                 }
             }
         )

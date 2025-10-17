@@ -22,7 +22,7 @@ class Target(ABC):
         self.requires_structure = requires_structure
 
     @abstractmethod
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None, apply_normalization: bool = False, raw_mean: Optional[float] = None, raw_std: Optional[float] = None) -> TargetResult:
         """
         Predict target property for a given composition.
         
@@ -30,6 +30,9 @@ class Target(ABC):
             composition: Array of composition values
             structure: Optional structure information
             elements: Optional list of element symbols corresponding to composition values
+            apply_normalization: Whether to apply z-score normalization to the result
+            raw_mean: Raw mean value for z-score normalization
+            raw_std: Raw standard deviation value for z-score normalization
             
         Returns:
             TargetResult with prediction value and metadata

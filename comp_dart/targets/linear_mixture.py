@@ -8,12 +8,8 @@ from comp_dart.core.interfaces import Target, TargetResult
 CONSTANT_DIR = "/mcp_server/comp-dart-gitlab/constant"
 DENSITY_FILE = os.path.join(CONSTANT_DIR, "densities.json")
 
-try:
-    with open(DENSITY_FILE, 'r') as f:
-        DENSITIES = json.load(f)
-except FileNotFoundError:
-    # Fallback if file not found
-    DENSITIES = {}
+with open(DENSITY_FILE, 'r') as f:
+    DENSITIES = json.load(f)
 
 
 class LinearMixtureTarget(Target):
@@ -38,7 +34,7 @@ class LinearMixtureTarget(Target):
         self.element_properties = element_properties
         self.requires_structure = requires_structure
 
-    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None) -> TargetResult:
+    def predict(self, composition: np.ndarray, structure: Optional[Any] = None, elements: Optional[List[str]] = None, apply_normalization: bool = False, raw_mean: Optional[float] = None, raw_std: Optional[float] = None) -> TargetResult:
         """
         Predict property using linear mixture rule.
         
@@ -46,6 +42,9 @@ class LinearMixtureTarget(Target):
             composition: Array of composition values
             structure: Structure information (optional)
             elements: Optional list of element symbols corresponding to composition values
+            apply_normalization: Whether to apply z-score normalization to the result
+            raw_mean: Raw mean value for z-score normalization
+            raw_std: Raw standard deviation value for z-score normalization
             
         Returns:
             TargetResult with predicted value
@@ -106,12 +105,23 @@ class LinearMixtureTarget(Target):
             raise ValueError("Arrays contain invalid numeric values (NaN or Inf)")
         
         value = np.sum(composition_array * property_array)
+        
+        # Apply normalization if requested
+        if apply_normalization:
+            if raw_mean is None or raw_std is None:
+                raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
+            value = (value - raw_mean) / raw_std
             
         return TargetResult(
             value=value,
             uncertainty=0.0,  # Linear mixture has no inherent uncertainty
             metadata={
                 "method": "linear_mixture",
-                "element_properties": self.element_properties
+                "element_properties": self.element_properties,
+                "normalization": {
+                    "applied": apply_normalization,
+                    "raw_mean": raw_mean,
+                    "raw_std": raw_std
+                }
             }
         )

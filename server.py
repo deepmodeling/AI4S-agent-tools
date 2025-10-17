@@ -58,6 +58,12 @@ def run_ga(
     model_path: Path = None,
     generations: int = 10,
     output: str = "ga_output.log",
+    target1_apply_norm: bool = False,
+    target1_raw_mean: Optional[float] = None,
+    target1_raw_std: Optional[float] = None,
+    target2_apply_norm: bool = False,
+    target2_raw_mean: Optional[float] = None,
+    target2_raw_std: Optional[float] = None,
 ):
     """
     Run genetic algorithm for composition optimization of materials.
@@ -135,6 +141,24 @@ def run_ga(
         output (str): Path to the log file where the execution details will be recorded.
             All execution information, including generation progress and final results,
             will be logged to this file.
+            
+        target1_apply_norm (bool): Whether to apply z-score normalization to target1 predictions.
+            If True, target1_raw_mean and target1_raw_std must be provided.
+            
+        target1_raw_mean (float, optional): Raw mean value for target1 z-score normalization.
+            Required if target1_apply_norm is True.
+            
+        target1_raw_std (float, optional): Raw standard deviation value for target1 z-score normalization.
+            Required if target1_apply_norm is True.
+            
+        target2_apply_norm (bool): Whether to apply z-score normalization to target2 predictions.
+            If True, target2_raw_mean and target2_raw_std must be provided.
+            
+        target2_raw_mean (float, optional): Raw mean value for target2 z-score normalization.
+            Required if target2_apply_norm is True.
+            
+        target2_raw_std (float, optional): Raw standard deviation value for target2 z-score normalization.
+            Required if target2_apply_norm is True.
 
     Returns:
         dict with best_individual (list): The optimized composition with the highest fitness score.
@@ -231,8 +255,20 @@ def run_ga(
     if len(targets) >= 2 and model_path:
         try:
             # Use first two targets for surrogate model predictions (mean and std)
-            target1_mean_result = targets[0].predict(composition, structures)
-            target1_std_result = targets[1].predict(composition, structures)
+            target1_mean_result = targets[0].predict(
+                composition, 
+                structures, 
+                apply_normalization=target1_apply_norm,
+                raw_mean=target1_raw_mean,
+                raw_std=target1_raw_std
+            )
+            target1_std_result = targets[1].predict(
+                composition, 
+                structures,
+                apply_normalization=target1_apply_norm,
+                raw_mean=target1_raw_mean,
+                raw_std=target1_raw_std
+            )
             
             target1_results.append({
                 "mean": target1_mean_result.value,
@@ -250,7 +286,13 @@ def run_ga(
     if len(targets) >= 3:
         try:
             # Use third target for linear mixture (density) prediction
-            target2_result = targets[2].predict(composition, elements=elements)
+            target2_result = targets[2].predict(
+                composition, 
+                elements=elements,
+                apply_normalization=target2_apply_norm,
+                raw_mean=target2_raw_mean,
+                raw_std=target2_raw_std
+            )
             
             target2_results.append({
                 "mean": target2_result.value,
