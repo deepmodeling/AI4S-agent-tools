@@ -7,22 +7,14 @@ from pathlib import Path
 from dp.agent.server import CalculationMCPServer
 
 # Import new modular components
-print("1")
 sys.path.append('/mcp_server/comp-dart-gitlab')
 from comp_dart.core.ga import GeneticAlgorithm
-print("1")
 from comp_dart.core.fitness import WeightedAggregator
-print("1")
 from comp_dart.core.constraints import ElementBoundConstraint, SumConstraint
-print("1")
 from comp_dart.targets.surrogate import SurrogateModelTarget
-print("1")
 from comp_dart.targets.linear_mixture import LinearMixtureTarget
-print("1")
 from comp_dart.generators.template_filler import TemplateLatticeFiller
-print("1")
 from comp_dart.api.endpoints import optimize_composition
-print("1")
 
 
 def parse_args():
@@ -84,7 +76,7 @@ def run_ga(
         
         init_mode (str): Population initialization mode. Options are:
             - 'random': Generate random compositions using Dirichlet distribution
-            - Other modes would use provided init_population
+            - Other modes are not implemented in this version
             
         population_size (int): Number of individuals (compositions) in each generation's 
             population. Larger populations increase diversity but require more computational 
@@ -103,20 +95,19 @@ def run_ga(
             If None, no constraints are applied.
         
         target1_weight (float): Weight coefficient for the mean of first target property in the target function.
-            Controls how much the mean of first target contributes to the fitness score. 
-            Value typically between 0.0 and 1.0. Note the negative sign for minimization.
+            Controls how much the mean of first target contributes to the fitness score. Note the negative sign for minimization.
         
         target1_std_weight (float): Weight coefficient for the standard deviation of first target property in 
             the target function. Controls how much the variation in first target contributes 
-            to the fitness score. Value typically between 0.0 and 1.0.
+            to the fitness score. Note the negative sign for minimization.
         
         target2_weight (float): Weight coefficient for the mean of second target property in the target function.
             Controls how much the mean of second target contributes to the fitness score. 
-            Value typically between 0.0 and 1.0.
+            Note the negative sign for minimization.
         
         target2_std_weight (float): Weight coefficient for the standard deviation of second target property in 
             the target function. Controls how much the variation in second target contributes 
-            to the fitness score. Value typically between 0.0 and 1.0.
+            to the fitness score. Note the negative sign for minimization.
         
         crossover_rate (float): Probability of crossover operation occurring between two 
             parents (0.0 to 1.0). Higher values increase exploration of the search space.
@@ -198,19 +189,14 @@ def run_ga(
     # Map weights to targets
     weights = {}
     
-    # Assign weights to targets
-    for i in range(len(targets)):
-        if i == 0:
-            weights[f"target_{i}"] = target1_weight * -1  # Negative because we want to minimize target1 mean
-        elif i == 1:
-            weights[f"target_{i}"] = target1_std_weight   # target1 std
-        elif i == 2:
-            weights[f"target_{i}"] = target2_weight * -1  # Negative because we want to minimize target2 mean
-        elif i == 3:
-            weights[f"target_{i}"] = target2_std_weight   # target2 std
-        else:
-            # For additional targets, default to neutral weight
-            weights[f"target_{i}"] = 0.0
+    
+    # Target1 weights (surrogate model target)
+    weights["target1_mean"] = target1_weight
+    weights["target1_std"] = target1_std_weight
+    
+    # Target2 weights (linear mixture target)
+    weights["target2_mean"] = target2_weight
+    weights["target2_std"] = target2_std_weight
 
     aggregator = WeightedAggregator(weights)
 
@@ -250,7 +236,7 @@ def run_ga(
             
             target1_results.append({
                 "mean": target1_mean_result.value,
-                "std": target1_std_result.value
+                "std": target1_std_result.uncertainty
             })
         except Exception as e:
             raise ValueError(f"Could not calculate target1 values: {e}") from e
@@ -277,14 +263,14 @@ def run_ga(
             "mean": 0.0,
             "std": 0.0
         })
-    
+    print(target1_results)
     # Handle results for arbitrary number of targets
     result_dict = {
         "best_individual": [float(x) for x in composition],  # Ensure we return standard Python floats
-        "pred_tec_mean": target1_results[0]["mean"] if target1_results else 0.0,
-        "pred_tec_std": target1_results[0]["std"] if target1_results else 0.0,
-        "pred_density_mean": target2_results[0]["mean"] if target2_results else 0.0,
-        "pred_density_std": target2_results[0]["std"] if target2_results else 0.0,
+        "pred_target1_mean": target1_results[0]["mean"] if target1_results else 0.0,
+        "pred_target1_std": target1_results[0]["std"] if target1_results else 0.0,
+        "pred_target2_mean": target2_results[0]["mean"] if target2_results else 0.0,
+        "pred_target2_std": target2_results[0]["std"] if target2_results else 0.0,
         "best_score": result["best_score"] if "best_score" in result else 0.0
     }
     

@@ -4,11 +4,8 @@ import torch
 import numpy as np
 import traceback
 from typing import List, Optional, Any
-print("s1")
 from comp_dart.core.interfaces import Target, TargetResult
-print("s1")
 from deepmd.pt.infer.deep_eval import DeepProperty
-print("s1")
 import zipfile
 import tarfile
 import tempfile
@@ -22,12 +19,10 @@ TARGET_1_MEAN = 9.76186694677871
 TARGET_1_STD = 4.3042156360248125
 
 # Use absolute paths from project root
-print("s1")
 CONSTANT_DIR = "/mcp_server/comp-dart-gitlab/constant"
 ATOMIC_MASS_FILE = os.path.join(CONSTANT_DIR, "atomic_mass.json")
 DENSITY_FILE = os.path.join(CONSTANT_DIR, "densities.json")
 
-print(os.path.exists(ATOMIC_MASS_FILE), os.path.exists(DENSITY_FILE))
 
 def z_core(array, mean=None, std=None):
     """
