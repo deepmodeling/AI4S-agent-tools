@@ -143,8 +143,7 @@ def target(
     packing = get_packing(elements, compositions)
 
     if tec_models is None:
-        tec_model_files = glob.glob('models/tec*.pt')
-        tec_models = (DeepProperty(model) for model in tec_model_files)
+        raise FileNotFoundError(f"No models.")
 
     struct_list = comp2struc(elements, compositions, packing=packing)
 
@@ -153,52 +152,13 @@ def target(
     pred_tec_mean = np.mean(pred_tec)
     pred_tec_std = np.std(pred_tec)
 
-    if get_density_mode == "relax":
-        assert calculator is not None, "calculator is not provided"
-        raw_pred_density = [calculate_density(s, calculator) for s in tqdm(struct_list)]
-        logging.info(f"raw_pred_density: {raw_pred_density}")
-        pred_density = [z_core(d, mean= 8331.903892865434, std=182.21803336559455) for d in raw_pred_density]
-    elif get_density_mode == "predict" or get_density_mode == "pred":
-        density_models = glob.glob('models/density*.pt')
-        density_models = (DeepProperty(model) for model in density_models)
-        pred_density = [pred(m, s) for m in density_models for s in tqdm(struct_list)]
-    elif get_density_mode == "weighted_avg":
-        density = 0
-        for i, e in enumerate(elements):
-            c = compositions[i]
-            density += c * densities_dict[e]
-        pred_density = [z_core(density, mean= 8331.903892865434, std=182.21803336559455)]
-    else:
-        raise ValueError(f"{get_density_mode} not supported, choose between relax, predict or pred")
+    density = 0
+    for i, e in enumerate(elements):
+        c = compositions[i]
+        density += c * densities_dict[e]
+    pred_density = [z_core(density, mean= 8331.903892865434, std=182.21803336559455)]
     pred_density_mean = np.mean(pred_density)
     pred_density_std = np.std(pred_density)
-    target = a * (-1* pred_tec_mean) + b * pred_tec_std + c * (-1* pred_density_mean) + d * pred_density_std
-
-    if generation is not None:
-        logging.info(pred_density)
-        logging.info([norm2orig(den, mean= 8331.903892865434, std=182.21803336559455) for den in pred_density])
-        logging.info(
-            f"""
-            ====\n
-            - Generation {generation}, 
-            - pred_tec_mean: {norm2orig(pred_tec_mean, mean=9.76186694677871, std=4.3042156360248125)},
-            - pred_density_mean: {norm2orig(pred_density_mean, mean= 8331.903892865434, std=182.21803336559455)},
-            - pred_tec_std: {np.std([norm2orig(tec, mean=9.76186694677871, std=4.3042156360248125) for tec in pred_tec])},
-            - pred_density_std: {np.std([norm2orig(den, mean= 8331.903892865434, std=182.21803336559455) for den in pred_density])},
-            - target: {target}
-            ----\n
-            """)
-    if finalize is not None:
-        logging.info(f"Final target: {target}")
-        logging.info(
-            f"""
-            ====\n
-            - pred_tec_mean: {norm2orig(pred_tec_mean, mean=9.76186694677871, std=4.3042156360248125)},
-            - pred_density_mean: {norm2orig(pred_density_mean, mean= 8331.903892865434, std=182.21803336559455)},
-            - pred_tec_std: {np.std([norm2orig(tec, mean=9.76186694677871, std=4.3042156360248125) for tec in pred_density])},
-            - pred_density_std: {np.std([norm2orig(den, mean= 8331.903892865434, std=182.21803336559455) for den in pred_density])},
-            - target: {target}
-            ----\n
-            """)
-
+    target = a * pred_tec_mean + b * pred_tec_std + c * pred_density_mean + d * pred_density_std
+    print(f"IN TARGET.PY: target {target}, pred_tec_mean {pred_tec_mean}, pred_density_mean {pred_density_mean}")
     return target

@@ -8,7 +8,7 @@ from constraints_utils import apply_constraints, parse_constraints, mass_to_mola
 class GeneticAlgorithm:
     def __init__(self, elements, population_size=10, generations=100, crossover_rate=0.8, mutation_rate=0.1,
                  selection_mode="roulette", init_population=None, constraints={}, a=0.9, b=0.1, c=0.9, d=0.1,
-                 get_density_mode='weighted_avg', tec_models=None):
+                 get_density_mode='weighted_avg', surrogate_models=None):
         self.elements = elements
         self.generations = generations
         self.crossover_rate = crossover_rate
@@ -20,7 +20,7 @@ class GeneticAlgorithm:
         self.c = c
         self.d = d
         self.get_density_mode = get_density_mode
-        self.tec_models = tec_models
+        self.surrogate_models = surrogate_models
 
         # Handle population initialization
         if init_population:
@@ -35,8 +35,8 @@ class GeneticAlgorithm:
             self.population = self.initialize_population(population_size)
 
         # Handle empty models
-        if self.tec_models is None or len(self.tec_models) == 0:
-            raise ValueError(f"TEC models are not provided or empty, got {tec_models}. Please provide valid TEC models.")
+        if self.surrogate_models is None or len(self.surrogate_models) == 0:
+            raise ValueError(f"TEC models are not provided or empty, got {surrogate_models}. Please provide valid TEC models.")
              
         logging.info(f"Population size: {self.population_size}")
 
@@ -94,10 +94,10 @@ class GeneticAlgorithm:
             molar_comp = apply_constraints(comp, self.elements, self.constraints)
             return target(self.elements, molar_comp, generation=generation,
                          a=self.a, b=self.b, c=self.c, d=self.d,
-                         get_density_mode=self.get_density_mode, tec_models=self.tec_models)
+                         get_density_mode=self.get_density_mode, surrogate_models=self.surrogate_models)
         return target(self.elements, comp, generation=generation,
                      a=self.a, b=self.b, c=self.c, d=self.d,
-                     get_density_mode=self.get_density_mode, tec_models=self.tec_models)
+                     get_density_mode=self.get_density_mode, surrogate_models=self.surrogate_models)
 
     def select_parents(self):
         logging.info("Selecting parents using mode: %s", self.selection_mode)
@@ -211,12 +211,12 @@ if __name__ == "__main__":
         logging.info("Elements: %s", elements)
         logging.info(f"Constraints: {constraints}")
 
-        # Load tec_models here and pass to GeneticAlgorithm
+        # Load surrogate_models here and pass to GeneticAlgorithm
         # HACK: Using a local path for tec models
         tec_model_files = glob.glob(
             "/personal/TOOLS_IN_DEV/Models/tec_*.pt"
         )
-        tec_models = [DeepProperty(model_file) for model_file in tec_model_files]
+        surrogate_models = [DeepProperty(model_file) for model_file in tec_model_files]
         logging.info(f"Loaded {len(tec_model_files) if os.path.exists('models') else 0} tec models")
 
         if init_mode == "random":
@@ -233,7 +233,7 @@ if __name__ == "__main__":
             constraints=constraints,
             a=a, b=b, c=c, d=d,
             get_density_mode=get_density_mode,
-            tec_models=tec_models
+            surrogate_models=surrogate_models
         )
 
         best_individual, best_score = ga.evolve()
