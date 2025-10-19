@@ -126,34 +126,30 @@ class GeneticAlgorithm:
                     
                 # Use structures if this target requires them, otherwise None
                 structure = structures[0] if structures and target.requires_structure else None
-                # For targets that need element information, pass the elements parameter
+                
+                # Check if we have normalization parameters for this target
+                has_normalization = hasattr(self, 'target_normalization') and f"target_{j}" in self.target_normalization
+                norm_params = self.target_normalization.get(f"target_{j}", {}) if has_normalization else {}
+                
+                # Always pass elements to predict method
                 if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
-                    # Check if we have normalization parameters for this target
-                    if hasattr(self, 'target_normalization') and f"target_{j}" in self.target_normalization:
-                        norm_params = self.target_normalization[f"target_{j}"]
-                        result = target.predict(
-                            constrained_individual, 
-                            structure, 
-                            elements=self.elements,
-                            apply_normalization=norm_params.get("apply_normalization", False),
-                            raw_mean=norm_params.get("raw_mean"),
-                            raw_std=norm_params.get("raw_std")
-                        )
-                    else:
-                        result = target.predict(constrained_individual, structure, elements=self.elements)
+                    result = target.predict(
+                        constrained_individual, 
+                        structure, 
+                        elements=self.elements,
+                        apply_normalization=norm_params.get("apply_normalization", False),
+                        raw_mean=norm_params.get("raw_mean"),
+                        raw_std=norm_params.get("raw_std")
+                    )
                 else:
-                    # Check if we have normalization parameters for this target
-                    if hasattr(self, 'target_normalization') and f"target_{j}" in self.target_normalization:
-                        norm_params = self.target_normalization[f"target_{j}"]
-                        result = target.predict(
-                            constrained_individual, 
-                            structure,
-                            apply_normalization=norm_params.get("apply_normalization", False),
-                            raw_mean=norm_params.get("raw_mean"),
-                            raw_std=norm_params.get("raw_std")
-                        )
-                    else:
-                        result = target.predict(constrained_individual, structure)
+                    result = target.predict(
+                        constrained_individual, 
+                        structure,
+                        elements=self.elements,
+                        apply_normalization=norm_params.get("apply_normalization", False),
+                        raw_mean=norm_params.get("raw_mean"),
+                        raw_std=norm_params.get("raw_std")
+                    )
                 individual_results[f"target_{j}"] = result
                 if result.uncertainty is not None:
                     print(f"    {target.__class__.__name__} target_{j}: {result.value:.6f} ± {result.uncertainty:.6f}")
@@ -220,12 +216,13 @@ class GeneticAlgorithm:
                     result = target.predict(
                         constrained_comp, 
                         structure,
+                        elements=self.elements,  # Pass elements to all targets
                         apply_normalization=norm_params.get("apply_normalization", False),
                         raw_mean=norm_params.get("raw_mean"),
                         raw_std=norm_params.get("raw_std")
                     )
                 else:
-                    result = target.predict(constrained_comp, structure)
+                    result = target.predict(constrained_comp, structure, elements=self.elements)
             target_results[f"target_{i}"] = result  # Pass the full TargetResult object
             
         # Aggregate results into fitness score
@@ -483,7 +480,7 @@ class GeneticAlgorithm:
                     continue
                     
                 structure = structures[0] if structures and target.requires_structure else None
-                # For targets that need element information, pass the elements parameter
+                # Always pass elements to predict method
                 if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
                     # Check if we have normalization parameters for this target
                     if hasattr(self, 'target_normalization') and f"target_{i}" in self.target_normalization:
@@ -505,12 +502,13 @@ class GeneticAlgorithm:
                         result = target.predict(
                             best_individual, 
                             structure,
+                            elements=self.elements,
                             apply_normalization=norm_params.get("apply_normalization", False),
                             raw_mean=norm_params.get("raw_mean"),
                             raw_std=norm_params.get("raw_std")
                         )
                     else:
-                        result = target.predict(best_individual, structure)
+                        result = target.predict(best_individual, structure, elements=self.elements)
                 target_values.append((f"target_{i}", result.value, result.uncertainty, result))
             
             # Print detailed generation information

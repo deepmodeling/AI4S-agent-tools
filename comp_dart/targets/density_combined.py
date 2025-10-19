@@ -84,6 +84,7 @@ class DensityTarget(Target):
                             if e in self.element_densities and i < len(composition):
                                 c = composition[i]
                                 density += c * self.element_densities[e]
+                        print(f"Calculated density with elements: {elements}, composition: {composition}, density: {density}")
                     else:
                         # When elements are not provided, fallback to using all element densities
                         # but only use as many as we have composition values
@@ -97,9 +98,11 @@ class DensityTarget(Target):
                             property_values = property_values[:len(composition)]
                             
                         density = np.sum(composition * np.array(property_values))
+                        print(f"Calculated density without elements: composition: {composition}, density: {density}")
                     method_used = "linear"
                     break
                 except Exception as e:
+                    print(f"Error in linear mixture calculation: {e}")
                     # Continue to next method
                     pass
             else:
@@ -128,8 +131,9 @@ class DensityTarget(Target):
             }
         }
             
+        print(f"Density calculation result - Raw: {density}, Normalized: {normalized_density}")
         return TargetResult(
-            value=normalized_density,
+            value=normalized_density if apply_normalization else density,
             uncertainty=0.0,  # Density calculation has no inherent uncertainty
             metadata=metadata
         )
