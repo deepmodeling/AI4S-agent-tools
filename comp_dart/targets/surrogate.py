@@ -50,7 +50,8 @@ def change_type_map(origin_type: list, data_type_map, model_type_map):
     final_type = []
     for single_type in origin_type:
         element = data_type_map[single_type]
-        final_type.append(np.where(np.array(model_type_map) == element)[0][0])
+        final_type.append(np.where(np.array(model_type_map)==element)[0][0])
+
     return final_type
 
 
@@ -59,100 +60,83 @@ def pred(model, structure):
     Make prediction using model and structure.
     
     Args:
-        model: Deep learning model
+        model: DeepProperty model
         structure: Structure object
         
     Returns:
-        Prediction result
+        Prediction value
     """
     d = System(structure, fmt='pymatgen/structure')
     orig_type_map = d.data["atom_names"]
     coords = d.data['coords']
     cells = d.data['cells']
-    atom_types = d.data['atom_types']
-    
-    # Convert atom types using change_type_map function
-    converted_atom_types = change_type_map(atom_types, orig_type_map, model.get_type_map())
-    
-    # Convert to numpy array with correct dtype
-    converted_atom_types = np.array(converted_atom_types, dtype=np.int32)
+    atom_types = change_type_map(d.data['atom_types'], orig_type_map, model.get_type_map())
 
-    pred_result = model.eval(
-        coords=coords,
-        atom_types=converted_atom_types,
+    pred_value = model.eval(
+        coords=coords, 
+        atom_types=atom_types, 
         cells=cells
     )[0]
 
-    return pred_result
+    return pred_value
 
 
 class SurrogateModelTarget(Target):
     """
-    Target that uses surrogate models (e.g., ML models) for property prediction.
+    Target that uses surrogate models for property prediction.
     """
-    def __init__(self, 
-                 model_path: Optional[str] = None,
-                 models: Optional[List[Any]] = None, 
-                 requires_structure: bool = True):
+    
+    def __init__(self, model_path: str, requires_structure: bool = True):
         """
         Initialize surrogate model target.
         
         Args:
-            model_path: Path to directory or archive containing model files (.pt or .pth)
-            models: List of pre-loaded surrogate models for prediction
-            requires_structure: Whether this target requires structure generation
+            model_path: Path to model file or directory containing models
+            requires_structure: Whether this target requires structure information for prediction
         """
-        super().__init__(requires_structure=requires_structure)
         self.model_path = model_path
+        self.requires_structure = requires_structure
+        self.models = self._load_models(model_path)
         
-        # Load models if model_path is provided
-        if model_path:
-            self.models = self._load_models(model_path)
-        else:
-            self.models = models if models is not None else []
-
     def _load_models(self, model_path: str) -> List[Any]:
         """
-        Load models from a directory or archive.
+        Load models from path.
         
         Args:
-            model_path: Path to directory or archive containing model files
+            model_path: Path to model file or directory containing models
             
         Returns:
             List of loaded models
         """
         models = []
         
-        # Check if model_path is a file (compressed) or directory
-        if os.path.isfile(model_path):
-            # Handle compressed file
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                if model_path.endswith('.zip'):
-                    with zipfile.ZipFile(model_path, 'r') as zip_ref:
-                        zip_ref.extractall(tmp_dir)
-                elif model_path.endswith('.tar.gz') or model_path.endswith('.tgz'):
-                    with tarfile.open(model_path, 'r:gz') as tar_ref:
-                        tar_ref.extractall(tmp_dir)
-                else:
-                    raise ValueError(f"Unsupported archive format: {model_path}")
-                
-                # Load models from extracted files
-                model_files = glob.glob(os.path.join(tmp_dir, "**/*.pt"), recursive=True) + \
-                              glob.glob(os.path.join(tmp_dir, "**/*.pth"), recursive=True)
-                
-                for model_file in model_files:
-                    try:
-                        # Load model with map_location to handle CPU-only environments
-                        print(f"Loading model from {model_file}...")
-                        model = DeepProperty(model_file)
-                        models.append(model)
-                        print(f"Successfully loaded model from {model_file}")
-                    except Exception as e:
-                        print(f"Warning: Could not load model from {model_file}: {e}")
-                        # Print full traceback
-                        traceback.print_exc()
-                        # Raise exception instead of continuing
-                        raise RuntimeError(f"Failed to load model from {model_file}: {e}")
+        # Handle compressed files
+        if model_path.endswith('.zip'):
+            with zipfile.ZipFile(model_path, 'r') as zip_ref:
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    zip_ref.extractall(tmp_dir)
+                    # Recursively load models from extracted directory
+                    return self._load_models(tmp_dir)
+        elif model_path.endswith(('.tar.gz', '.tar.bz2', '.tar.xz')):
+            with tarfile.open(model_path, 'r') as tar_ref:
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    tar_ref.extractall(tmp_dir)
+                    # Recursively load models from extracted directory
+                    return self._load_models(tmp_dir)
+        elif os.path.isfile(model_path) and model_path.endswith(('.pt', '.pth')):
+            # Handle single model file
+            try:
+                # Load model with map_location to handle CPU-only environments
+                print(f"Loading model from {model_path}...")
+                model = DeepProperty(model_path)
+                models.append(model)
+                print(f"Successfully loaded model from {model_path}")
+            except Exception as e:
+                print(f"Warning: Could not load model from {model_path}: {e}")
+                # Print full traceback
+                traceback.print_exc()
+                # Raise exception instead of continuing
+                raise RuntimeError(f"Failed to load model from {model_path}: {e}")
         else:
             # Handle directory
             model_files = glob.glob(os.path.join(model_path, "*.pt")) + \
@@ -203,6 +187,7 @@ class SurrogateModelTarget(Target):
         
         # Predict using all models - following the pattern from original server.py
         predictions = []
+        normalized_predictions = []
         for i, model in enumerate(self.models):
             print(f"Processing with model {i+1}/{len(self.models)}")
             # Handle both single structure and list of structures
@@ -217,9 +202,11 @@ class SurrogateModelTarget(Target):
                         if raw_mean is None or raw_std is None:
                             raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
                         normalized_pred = z_core(pred_value, mean=raw_mean, std=raw_std)
-                        predictions.append(normalized_pred)
+                        normalized_predictions.append(normalized_pred)
+                        predictions.append(pred_value)  # Keep original values
                     else:
                         predictions.append(pred_value)
+                        normalized_predictions.append(pred_value)  # Same as original if not normalized
                         
                     print(f"  Prediction completed: {pred_value}")
                 except Exception as e:
@@ -232,20 +219,29 @@ class SurrogateModelTarget(Target):
         # Calculate statistics
         pred_mean = np.mean(predictions)
         pred_std = np.std(predictions)
+        normalized_mean = np.mean(normalized_predictions)
+        normalized_std = np.std(normalized_predictions)
         
-        print(f"Prediction completed. Mean: {pred_mean}, Std: {pred_std}")
+        print(f"Prediction completed. Original Mean: {pred_mean}, Original Std: {pred_std}")
+        print(f"Normalized Mean: {normalized_mean}, Normalized Std: {normalized_std}")
             
-        return TargetResult(
-            value=pred_mean,
-            uncertainty=pred_std,
-            metadata={
-                "raw_predictions": predictions,
-                "normalization": {
-                    "applied": apply_normalization,
-                    "raw_mean": raw_mean,
-                    "raw_std": raw_std
-                }
+        # Create metadata with normalization info
+        metadata = {
+            "raw_predictions": predictions,
+            "normalized_predictions": normalized_predictions,
+            "normalization": {
+                "applied": apply_normalization,
+                "raw_mean": raw_mean,
+                "raw_std": raw_std
             }
+        }
+        
+        # Return normalized values in the TargetResult, but store normalization info in metadata
+        # so that get_original_value() and get_original_uncertainty() can denormalize when needed
+        return TargetResult(
+            value=normalized_mean if apply_normalization else pred_mean,
+            uncertainty=normalized_std if apply_normalization else pred_std,
+            metadata=metadata
         )
         
     def _predict_with_model(self, model: Any, composition: np.ndarray, structure: Optional[Any]) -> float:

@@ -12,7 +12,7 @@ from comp_dart.core.ga import GeneticAlgorithm
 from comp_dart.core.fitness import WeightedAggregator
 from comp_dart.core.constraints import ElementBoundConstraint, SumConstraint
 from comp_dart.targets.surrogate import SurrogateModelTarget
-from comp_dart.targets.linear_mixture import LinearMixtureTarget
+from comp_dart.targets.density_combined import DensityTarget
 from comp_dart.generators.template_filler import TemplateLatticeFiller
 from comp_dart.api.endpoints import optimize_composition
 
@@ -48,22 +48,22 @@ def run_ga(
     population_size: int,
     selection_mode: str,
     constraints: Optional[Dict[str, str]],
-    target1_weight: float = 0.6,
-    target1_std_weight: float = 0.2,
-    target2_weight: float = 0.6,
-    target2_std_weight: float = 0,
+    property0_mean_weight: float = 0.6,
+    property0_std_weight: float = 0.2,
+    property1_mean_weight: float = 0.6,
+    property1_std_weight: float = 0.0,
     crossover_rate: float = 0.8,
     mutation_rate: float = 0.3,
     init_population: Optional[List[List[float]]] = None,
     model_path: Path = None,
     generations: int = 10,
     output: str = "ga_output.log",
-    target1_apply_norm: bool = False,
-    target1_raw_mean: Optional[float] = None,
-    target1_raw_std: Optional[float] = None,
-    target2_apply_norm: bool = False,
-    target2_raw_mean: Optional[float] = None,
-    target2_raw_std: Optional[float] = None,
+    property0_apply_norm: bool = False,
+    property0_raw_mean: Optional[float] = None,
+    property0_raw_std: Optional[float] = None,
+    property1_apply_norm: bool = False,
+    property1_raw_mean: Optional[float] = None,
+    property1_raw_std: Optional[float] = None,
 ):
     """
     Run genetic algorithm for composition optimization of materials.
@@ -100,20 +100,19 @@ def run_ga(
             - {'Co': '>0.1'} - Cobalt fraction must be greater than 0.1
             If None, no constraints are applied.
         
-        target1_weight (float): Weight coefficient for the mean of first target property in the target function.
-            Controls how much the mean of first target contributes to the fitness score. Note the negative sign for minimization.
+        property0_mean_weight (float): Weight coefficient for the mean of property 0 in the target function.
+            Controls how much the mean of first property contributes to the fitness score.
         
-        target1_std_weight (float): Weight coefficient for the standard deviation of first target property in 
-            the target function. Controls how much the variation in first target contributes 
-            to the fitness score. Note the negative sign for minimization.
+        property0_std_weight (float): Weight coefficient for the standard deviation of property 0 in 
+            the target function. Controls how much the variation in first property contributes 
+            to the fitness score.
         
-        target2_weight (float): Weight coefficient for the mean of second target property in the target function.
-            Controls how much the mean of second target contributes to the fitness score. 
-            Note the negative sign for minimization.
+        property1_mean_weight (float): Weight coefficient for the mean of property 1 in the target function.
+            Controls how much the mean of second property contributes to the fitness score.
         
-        target2_std_weight (float): Weight coefficient for the standard deviation of second target property in 
-            the target function. Controls how much the variation in second target contributes 
-            to the fitness score. Note the negative sign for minimization.
+        property1_std_weight (float): Weight coefficient for the standard deviation of property 1 in 
+            the target function. Controls how much the variation in second property contributes 
+            to the fitness score.
         
         crossover_rate (float): Probability of crossover operation occurring between two 
             parents (0.0 to 1.0). Higher values increase exploration of the search space.
@@ -142,32 +141,32 @@ def run_ga(
             All execution information, including generation progress and final results,
             will be logged to this file.
             
-        target1_apply_norm (bool): Whether to apply z-score normalization to target1 predictions.
-            If True, target1_raw_mean and target1_raw_std must be provided.
+        property0_apply_norm (bool): Whether to apply z-score normalization to property0 predictions.
+            If True, property0_raw_mean and property0_raw_std must be provided.
             
-        target1_raw_mean (float, optional): Raw mean value for target1 z-score normalization.
-            Required if target1_apply_norm is True.
+        property0_raw_mean (float, optional): Raw mean value for property0 z-score normalization.
+            Required if property0_apply_norm is True.
             
-        target1_raw_std (float, optional): Raw standard deviation value for target1 z-score normalization.
-            Required if target1_apply_norm is True.
+        property0_raw_std (float, optional): Raw standard deviation value for property0 z-score normalization.
+            Required if property0_apply_norm is True.
             
-        target2_apply_norm (bool): Whether to apply z-score normalization to target2 predictions.
-            If True, target2_raw_mean and target2_raw_std must be provided.
+        property1_apply_norm (bool): Whether to apply z-score normalization to property1 predictions.
+            If True, property1_raw_mean and property1_raw_std must be provided.
             
-        target2_raw_mean (float, optional): Raw mean value for target2 z-score normalization.
-            Required if target2_apply_norm is True.
+        property1_raw_mean (float, optional): Raw mean value for property1 z-score normalization.
+            Required if property1_apply_norm is True.
             
-        target2_raw_std (float, optional): Raw standard deviation value for target2 z-score normalization.
-            Required if target2_apply_norm is True.
+        property1_raw_std (float, optional): Raw standard deviation value for property1 z-score normalization.
+            Required if property1_apply_norm is True.
 
     Returns:
         dict with best_individual (list): The optimized composition with the highest fitness score.
             This represents the best found composition in mole fractions, corresponding to
             the elements list provided as input.
-        dict with pred_target1_mean (float): Predicted mean of first target value
-        dict with pred_target1_std (float): Predicted standard deviation of first target
-        dict with pred_target2_mean (float): Predicted mean of second target value
-        dict with pred_target2_std (float): Predicted standard deviation of second target
+        dict with pred_property0_mean (float): Predicted mean of first property value
+        dict with pred_property0_std (float): Predicted standard deviation of first property
+        dict with pred_property1_mean (float): Predicted mean of second property value
+        dict with pred_property1_std (float): Predicted standard deviation of second property
     """
     # Convert constraint specifications to constraint objects
     print(f"Elements: {elements}, Constraints: {constraints}, Init mode: {init_mode}, Init population: {init_population}, Population size: {population_size}, Selection mode: {selection_mode}")
@@ -190,21 +189,20 @@ def run_ga(
     
     # Add surrogate model targets if model path is provided
     if model_path:
-        # Create surrogate targets with model_path
+        # Create surrogate target with model_path
         print(f"Loading models from {model_path}")
-        surrogate_targets = [
-            SurrogateModelTarget(model_path=str(model_path), requires_structure=True),  # Mean target
-            SurrogateModelTarget(model_path=str(model_path), requires_structure=True),  # Std target
-        ]
-        print(f"Successfully loaded {len(surrogate_targets)} surrogate targets")
-        targets.extend(surrogate_targets)
+        surrogate_target = SurrogateModelTarget(model_path=str(model_path), requires_structure=True)
+        print(f"Successfully loaded surrogate target")
+        targets.append(surrogate_target)
+    else:
+        targets.append(None)
     
-    # Add linear mixture target using constant data
-    linear_target = LinearMixtureTarget(
-        None,  # Will use default data from constants
+    # Add density target using constant data
+    density_target = DensityTarget(
+        preferred_methods=["linear"],
         requires_structure=False
     )
-    targets.append(linear_target)
+    targets.append(density_target)
 
     # Create structure generator
     structure_generator = TemplateLatticeFiller()
@@ -213,15 +211,15 @@ def run_ga(
     # Map weights to targets
     weights = {}
     
-    
-    # Target1 weights (surrogate model target)
-    weights["target1_mean"] = target1_weight
-    weights["target1_std"] = target1_std_weight
-    
-    # Target2 weights (linear mixture target)
-    weights["target2_mean"] = target2_weight
-    weights["target2_std"] = target2_std_weight
+    # Property 0 weights (surrogate model target - mean and std)
+    weights["target_0"] = property0_mean_weight  # Mean component of property 0
+    weights["target_1"] = property0_std_weight   # Std component of property 0
 
+    # Property 1 weights (density target - mean and std)
+    weights["target_2"] = property1_mean_weight  # Mean component of property 1
+    weights["target_3"] = property1_std_weight   # Std component of property 1 (will be 0 for linear mixture)
+
+    print(f"Weight configuration: {weights}")
     aggregator = WeightedAggregator(weights)
 
     # Create genetic algorithm using the new modular framework
@@ -248,71 +246,70 @@ def run_ga(
     structures = structure_generator.generate(composition, elements)
     
     # Calculate actual target values for the best composition
-    target1_results = []
-    target2_results = []
+    property0_results = []
+    property1_results = []
     
-    # Calculate target1 (surrogate model) values if targets are available
-    if len(targets) >= 2 and model_path:
+    # Calculate property 0 (surrogate model) values if targets are available
+    if targets[0] is not None and model_path:
         try:
-            # Use first two targets for surrogate model predictions (mean and std)
-            target1_mean_result = targets[0].predict(
-                composition, 
-                structures, 
-                apply_normalization=target1_apply_norm,
-                raw_mean=target1_raw_mean,
-                raw_std=target1_raw_std
-            )
-            target1_std_result = targets[1].predict(
+            # Use first target for surrogate model predictions (mean and std)
+            property0_result = targets[0].predict(
                 composition, 
                 structures,
-                apply_normalization=target1_apply_norm,
-                raw_mean=target1_raw_mean,
-                raw_std=target1_raw_std
+                apply_normalization=property0_apply_norm,
+                raw_mean=property0_raw_mean,
+                raw_std=property0_raw_std
             )
             
-            target1_results.append({
-                "mean": target1_mean_result.value,
-                "std": target1_std_result.uncertainty
+            # Check if the result object has the required methods
+            if not hasattr(property0_result, 'get_original_value'):
+                raise AttributeError("'TargetResult' object has no attribute 'get_original_value'")
+            
+            if not hasattr(property0_result, 'get_original_uncertainty'):
+                raise AttributeError("'TargetResult' object has no attribute 'get_original_uncertainty'")
+            
+            property0_results.append({
+                "mean": property0_result.get_original_value(),
+                "std": property0_result.get_original_uncertainty()
             })
         except Exception as e:
-            raise ValueError(f"Could not calculate target1 values: {e}") from e
+            raise ValueError(f"Could not calculate property0 values: {e}") from e
     else:
-        target1_results.append({
+        property0_results.append({
             "mean": 0.0,
             "std": 0.0
         })
     
-    # Calculate target2 (linear mixture/density) values
-    if len(targets) >= 3:
-        try:
-            # Use third target for linear mixture (density) prediction
-            target2_result = targets[2].predict(
-                composition, 
-                elements=elements,
-                apply_normalization=target2_apply_norm,
-                raw_mean=target2_raw_mean,
-                raw_std=target2_raw_std
-            )
-            
-            target2_results.append({
-                "mean": target2_result.value,
-                "std": 0.0  # Linear mixture has no inherent std
-            })
-        except Exception as e:
-            raise ValueError(f"Could not calculate target2 values: {e}") from e
-    else:
-        target2_results.append({
-            "mean": 0.0,
-            "std": 0.0
+    # Calculate property 1 (density) values
+    try:
+        # Use second target for density prediction
+        property1_result = targets[1].predict(
+            composition, 
+            elements=elements,
+            apply_normalization=property1_apply_norm,
+            raw_mean=property1_raw_mean,
+            raw_std=property1_raw_std
+        )
+        
+        # Check if the result object has the required methods
+        if not hasattr(property1_result, 'get_original_value'):
+            raise AttributeError("'TargetResult' object has no attribute 'get_original_value'")
+        
+        property1_results.append({
+            "mean": property1_result.get_original_value(),
+            "std": 0.0  # Density calculation has no inherent std (linear mixture)
         })
-    print(target1_results)
+    except Exception as e:
+        raise ValueError(f"Could not calculate property1 values: {e}") from e
+    
+    print(f"Property0 results: {property0_results}")
     # Handle results for arbitrary number of targets
     result_dict = {
         "best_individual": [float(x) for x in composition],  # Ensure we return standard Python floats
-        "pred_target1_mean": target1_results[0]["mean"] if target1_results else 0.0,
-        "pred_target1_std": target1_results[0]["std"] if target1_results else 0.0,
-        "pred_target2_mean": target2_results[0]["mean"] if target2_results else 0.0,
-        "pred_target2_std": target2_results[0]["std"] if target2_results else 0.0,
+        "pred_property0_mean": property0_results[0]["mean"] if property0_results else 0.0,
+        "pred_property0_std": property0_results[0]["std"] if property0_results else 0.0,
+        "pred_property1_mean": property1_results[0]["mean"] if property1_results else 0.0,
+        "pred_property1_std": property1_results[0]["std"] if property1_results else 0.0,
         "best_score": result["best_score"] if "best_score" in result else 0.0
     }
     

@@ -30,22 +30,25 @@ def mk_template_supercell(packing: str):
     elif "bcc" in packing:
         template_file = os.path.join(STRUCT_TEMPLATE_DIR, "bcc-Fe_mp-13_conventional_standard.cif")
         s = Structure.from_file(template_file)
-        return s.make_supercell([6, 6, 6])
+        return s.make_supercell([5, 5, 5])
     elif "hcp" in packing:
-        template_file = os.path.join(STRUCT_TEMPLATE_DIR, "hcp-Co_mp-54_conventional_standard.cif")
+        template_file = os.path.join(STRUCT_TEMPLATE_DIR, "hcp-Co_mp-25_conventional_standard.cif")
         s = Structure.from_file(template_file)
-        return s.make_supercell([6, 6, 6])
+        return s.make_supercell([5, 5, 5])
     else:
-        raise ValueError(f"{packing} not supported")
+        # Default to fcc
+        template_file = os.path.join(STRUCT_TEMPLATE_DIR, "fcc-Ni_mp-23_conventional_standard.cif")
+        s = Structure.from_file(template_file)
+        return s.make_supercell([5, 5, 5])
 
 
-def normalize_composition(composition: list, total: int) -> list:
+def normalize_composition(composition: List[float], total: int = 100) -> List[int]:
     """
-    Normalize composition to sum to a specific total.
+    Normalize composition to integers that sum to total.
     
     Args:
         composition: List of composition values
-        total: Target total value
+        total: Target sum for normalized composition
         
     Returns:
         Normalized composition
@@ -109,7 +112,7 @@ class TemplateLatticeFiller(StructureGenerator):
         else:
             self.template_path = template_path
 
-    def generate(self, composition: np.ndarray, elements: List[str]) -> List[Any]:
+    def generate_structures(self, composition: np.ndarray, elements: List[str]) -> List[Any]:
         """
         Generate structures by filling a template lattice based on composition.
         
@@ -152,3 +155,17 @@ class TemplateLatticeFiller(StructureGenerator):
             structure_list.append(ss)
 
         return structure_list
+        
+    def generate(self, composition: np.ndarray, elements: List[str]) -> List[Any]:
+        """
+        Generate structures by filling a template lattice based on composition.
+        Backward compatibility method.
+        
+        Args:
+            composition: Array of composition values
+            elements: List of element symbols
+            
+        Returns:
+            List of generated structures
+        """
+        return self.generate_structures(composition, elements)

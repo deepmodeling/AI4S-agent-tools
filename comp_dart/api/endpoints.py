@@ -53,12 +53,15 @@ def predict_property(composition: List[float], target: Target, structure: Any = 
     Returns:
         Dictionary with prediction results
     """
+    # Convert composition to numpy array
     comp_array = np.array(composition)
+    
+    # Make prediction
     result = target.predict(comp_array, structure)
     
     return {
-        "value": result.value,
-        "uncertainty": result.uncertainty,
+        "value": float(result.value),
+        "uncertainty": float(result.uncertainty or 0.0),
         "metadata": result.metadata
     }
 
