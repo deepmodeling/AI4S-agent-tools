@@ -33,6 +33,8 @@ def z_core(array, mean=None, std=None):
     Returns:
         Normalized array
     """
+    if mean is None or std is None:
+        raise ValueError("Both mean and std must be provided for z-score normalization")
     return (array - mean) / std
 
 
@@ -225,8 +227,15 @@ class SurrogateModelTarget(Target):
         # Calculate statistics
         pred_mean = np.mean(predictions)
         pred_std = np.std(predictions)
-        normalized_mean = np.mean(normalized_predictions)
-        normalized_std = np.std(normalized_predictions)
+        
+        # Calculate normalized statistics correctly
+        if apply_normalization and raw_mean is not None and raw_std is not None:
+            normalized_mean = z_core(pred_mean, mean=raw_mean, std=raw_std)
+            # For standard deviation, only scale (don't shift)
+            normalized_std = pred_std / raw_std if raw_std != 0 else pred_std
+        else:
+            normalized_mean = pred_mean
+            normalized_std = pred_std
         
         print(f"Prediction completed. Original Mean: {pred_mean}, Original Std: {pred_std}")
         print(f"Normalized Mean: {normalized_mean}, Normalized Std: {normalized_std}")
@@ -242,8 +251,9 @@ class SurrogateModelTarget(Target):
             }
         }
         
-        # Return normalized values in the TargetResult, but store normalization info in metadata
-        # so that get_original_value() and get_original_uncertainty() can denormalize when needed
+        # Return normalized values in the TargetResult when apply_normalization is True
+        # This ensures that fitness calculation uses normalized values
+        # The metadata still contains original values for get_original_value() method
         return TargetResult(
             value=normalized_mean if apply_normalization else pred_mean,
             uncertainty=normalized_std if apply_normalization else pred_std,
