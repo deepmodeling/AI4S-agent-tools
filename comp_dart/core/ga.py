@@ -131,25 +131,41 @@ class GeneticAlgorithm:
                 has_normalization = hasattr(self, 'target_normalization') and f"target_{j}" in self.target_normalization
                 norm_params = self.target_normalization.get(f"target_{j}", {}) if has_normalization else {}
                 
-                # Always pass elements to predict method
+                # For targets that need element information, pass the elements parameter
                 if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
-                    result = target.predict(
-                        constrained_individual, 
-                        structure, 
-                        elements=self.elements,
-                        apply_normalization=norm_params.get("apply_normalization", False),
-                        raw_mean=norm_params.get("raw_mean"),
-                        raw_std=norm_params.get("raw_std")
-                    )
+                    # Check if we have normalization parameters for this target
+                    if has_normalization:
+                        result = target.predict(
+                            constrained_individual, 
+                            structure, 
+                            elements=self.elements,
+                            apply_normalization=norm_params.get("apply_normalization", False),
+                            raw_mean=norm_params.get("raw_mean"),
+                            raw_std=norm_params.get("raw_std")
+                        )
+                    else:
+                        result = target.predict(
+                            constrained_individual, 
+                            structure, 
+                            elements=self.elements
+                        )
                 else:
-                    result = target.predict(
-                        constrained_individual, 
-                        structure,
-                        elements=self.elements,
-                        apply_normalization=norm_params.get("apply_normalization", False),
-                        raw_mean=norm_params.get("raw_mean"),
-                        raw_std=norm_params.get("raw_std")
-                    )
+                    # Check if we have normalization parameters for this target
+                    if has_normalization:
+                        result = target.predict(
+                            constrained_individual, 
+                            structure,
+                            elements=self.elements,
+                            apply_normalization=norm_params.get("apply_normalization", False),
+                            raw_mean=norm_params.get("raw_mean"),
+                            raw_std=norm_params.get("raw_std")
+                        )
+                    else:
+                        result = target.predict(
+                            constrained_individual, 
+                            structure,
+                            elements=self.elements
+                        )
                 individual_results[f"target_{j}"] = result
                 if result.uncertainty is not None:
                     print(f"    {target.__class__.__name__} target_{j}: {result.value:.6f} ± {result.uncertainty:.6f}")
