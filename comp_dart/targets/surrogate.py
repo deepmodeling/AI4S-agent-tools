@@ -195,7 +195,6 @@ class SurrogateModelTarget(Target):
         
         # Predict using all models - following the pattern from original server.py
         predictions = []
-        normalized_predictions = []
         for i, model in enumerate(self.models):
             print(f"Processing with model {i+1}/{len(self.models)}")
             # Handle both single structure and list of structures
@@ -204,18 +203,7 @@ class SurrogateModelTarget(Target):
                 try:
                     print(f"  Predicting structure {j+1}/{len(structures_to_process)}")
                     pred_value = pred(model, s)
-                    
-                    # Apply normalization if requested
-                    if apply_normalization:
-                        if raw_mean is None or raw_std is None:
-                            raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
-                        normalized_pred = z_core(pred_value, mean=raw_mean, std=raw_std)
-                        normalized_predictions.append(normalized_pred)
-                        predictions.append(pred_value)  # Keep original values
-                    else:
-                        predictions.append(pred_value)
-                        normalized_predictions.append(pred_value)  # Same as original if not normalized
-                        
+                    predictions.append(pred_value)
                     print(f"  Prediction completed: {pred_value}")
                 except Exception as e:
                     print(f"Error: Could not make prediction with model: {e}")
@@ -224,18 +212,22 @@ class SurrogateModelTarget(Target):
                     # Raise exception instead of adding default value
                     raise RuntimeError(f"Failed to make prediction: {e}")
             
+        # Apply normalization if requested
+        normalized_predictions = []
+        if apply_normalization:
+            if raw_mean is None or raw_std is None:
+                raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
+            for pred_value in predictions:
+                normalized_pred = z_core(pred_value, mean=raw_mean, std=raw_std)
+                normalized_predictions.append(normalized_pred)
+        else:
+            normalized_predictions = predictions
+            
         # Calculate statistics
         pred_mean = np.mean(predictions)
         pred_std = np.std(predictions)
-        
-        # Calculate normalized statistics correctly
-        if apply_normalization and raw_mean is not None and raw_std is not None:
-            normalized_mean = z_core(pred_mean, mean=raw_mean, std=raw_std)
-            # For standard deviation, only scale (don't shift)
-            normalized_std = pred_std / raw_std if raw_std != 0 else pred_std
-        else:
-            normalized_mean = pred_mean
-            normalized_std = pred_std
+        normalized_mean = np.mean(normalized_predictions)
+        normalized_std = np.std(normalized_predictions)
         
         print(f"Prediction completed. Original Mean: {pred_mean}, Original Std: {pred_std}")
         print(f"Normalized Mean: {normalized_mean}, Normalized Std: {normalized_std}")

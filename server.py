@@ -236,6 +236,30 @@ def run_ga(
         mutation_rate=mutation_rate,
         selection_mode=selection_mode
     )
+    
+    # Set target normalization parameters for fitness calculation
+    ga.target_normalization = {
+        "target_0": {
+            "apply_normalization": property0_apply_norm,
+            "raw_mean": property0_raw_mean,
+            "raw_std": property0_raw_std
+        },
+        "target_1": {
+            "apply_normalization": property0_apply_norm,
+            "raw_mean": property0_raw_mean,
+            "raw_std": property0_raw_std
+        },
+        "target_2": {
+            "apply_normalization": property1_apply_norm,
+            "raw_mean": property1_raw_mean,
+            "raw_std": property1_raw_std
+        },
+        "target_3": {
+            "apply_normalization": property1_apply_norm,
+            "raw_mean": property1_raw_mean,
+            "raw_std": property1_raw_std
+        }
+    }
 
     # Run optimization using the new modular framework
     result = optimize_composition(ga)
