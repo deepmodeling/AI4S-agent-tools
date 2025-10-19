@@ -30,5 +30,5 @@ class WeightedAggregator(Aggregator):
         for target_name, result in results.items():
             weight = self.weights.get(target_name, 0.0)
             score += weight * result.value
-            
+            print(f"    {target_name}: value={result.value}, weight={weight}, contribution={weight * result.value}")
         return score

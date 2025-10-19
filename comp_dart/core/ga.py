@@ -198,6 +198,7 @@ class GeneticAlgorithm:
             if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
                 # Check if we have normalization parameters for this target
                 if hasattr(self, 'target_normalization') and f"target_{i}" in self.target_normalization:
+                    print(self.target_normalization)
                     norm_params = self.target_normalization[f"target_{i}"]
                     result = target.predict(
                         constrained_comp, 
@@ -224,7 +225,8 @@ class GeneticAlgorithm:
                 else:
                     result = target.predict(constrained_comp, structure, elements=self.elements)
             target_results[f"target_{i}"] = result  # Pass the full TargetResult object
-            
+        
+        print(f"  Target results for fitness evaluation: {target_results}")
         # Aggregate results into fitness score
         fitness = self.aggregator.aggregate(target_results)
         print(f"  Fitness score: {fitness:.6f}")
