@@ -188,13 +188,14 @@ def run_ga(
     targets = []
     
     # Add surrogate model targets if model path is provided
-    if model_path:
-        # Create surrogate target with model_path
+    if model_path and Path(model_path).exists():
+        # Create surrogate target with model_path - let SurrogateModelTarget handle compressed files
         print(f"Loading models from {model_path}")
         surrogate_target = SurrogateModelTarget(model_path=str(model_path), requires_structure=True)
         print(f"Successfully loaded surrogate target")
         targets.append(surrogate_target)
     else:
+        print(f"No valid model_path provided or path does not exist: {model_path}")
         targets.append(None)
     
     # Add density target using constant data
@@ -250,7 +251,7 @@ def run_ga(
     property1_results = []
     
     # Calculate property 0 (surrogate model) values if targets are available
-    if targets[0] is not None and model_path:
+    if targets[0] is not None and model_path and Path(model_path).exists():
         try:
             # Use first target for surrogate model predictions (mean and std)
             property0_result = targets[0].predict(

@@ -12,6 +12,7 @@ import tempfile
 from pymatgen.core import Structure
 from dpdata import System
 from tqdm import tqdm
+import pathlib
 
 
 # Use absolute paths from project root
@@ -110,37 +111,39 @@ class SurrogateModelTarget(Target):
         """
         models = []
         
+        # Convert to Path object for easier handling
+        path_obj = pathlib.Path(model_path)
+        
         # Handle compressed files
-        if model_path.endswith('.zip'):
-            with zipfile.ZipFile(model_path, 'r') as zip_ref:
+        if path_obj.is_file() and path_obj.suffix == '.zip':
+            with zipfile.ZipFile(path_obj, 'r') as zip_ref:
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     zip_ref.extractall(tmp_dir)
                     # Recursively load models from extracted directory
                     return self._load_models(tmp_dir)
-        elif model_path.endswith(('.tar.gz', '.tar.bz2', '.tar.xz')):
-            with tarfile.open(model_path, 'r') as tar_ref:
+        elif path_obj.is_file() and path_obj.suffix in ['.gz', '.bz2', '.xz'] and '.tar' in path_obj.name:
+            with tarfile.open(path_obj, 'r') as tar_ref:
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     tar_ref.extractall(tmp_dir)
                     # Recursively load models from extracted directory
                     return self._load_models(tmp_dir)
-        elif os.path.isfile(model_path) and model_path.endswith(('.pt', '.pth')):
+        elif path_obj.is_file() and path_obj.suffix in ['.pt', '.pth']:
             # Handle single model file
             try:
                 # Load model with map_location to handle CPU-only environments
-                print(f"Loading model from {model_path}...")
-                model = DeepProperty(model_path)
+                print(f"Loading model from {path_obj}...")
+                model = DeepProperty(str(path_obj))
                 models.append(model)
-                print(f"Successfully loaded model from {model_path}")
+                print(f"Successfully loaded model from {path_obj}")
             except Exception as e:
-                print(f"Warning: Could not load model from {model_path}: {e}")
+                print(f"Warning: Could not load model from {path_obj}: {e}")
                 # Print full traceback
                 traceback.print_exc()
                 # Raise exception instead of continuing
-                raise RuntimeError(f"Failed to load model from {model_path}: {e}")
-        else:
-            # Handle directory
-            model_files = glob.glob(os.path.join(model_path, "*.pt")) + \
-                          glob.glob(os.path.join(model_path, "*.pth"))
+                raise RuntimeError(f"Failed to load model from {path_obj}: {e}")
+        elif path_obj.is_dir():
+            # Handle directory - recursively search for .pt and .pth files
+            model_files = list(path_obj.rglob("*.pt")) + list(path_obj.rglob("*.pth"))
             
             # Sort model files to ensure consistent loading order
             model_files.sort()
@@ -149,7 +152,7 @@ class SurrogateModelTarget(Target):
                 try:
                     # Load model with map_location to handle CPU-only environments
                     print(f"Loading model from {model_file}...")
-                    model = DeepProperty(model_file)
+                    model = DeepProperty(str(model_file))
                     models.append(model)
                     print(f"Successfully loaded model from {model_file}")
                 except Exception as e:
@@ -158,6 +161,9 @@ class SurrogateModelTarget(Target):
                     traceback.print_exc()
                     # Raise exception instead of continuing
                     raise RuntimeError(f"Failed to load model from {model_file}: {e}")
+        else:
+            # If path doesn't exist or is invalid
+            raise ValueError(f"Invalid model path: {model_path}")
             
         print(f"Loaded {len(models)} models")
         return models
