@@ -117,7 +117,7 @@ class DensityTarget(Target):
             if raw_mean is None or raw_std is None:
                 raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
             normalized_density = (density - raw_mean) / raw_std
-            
+        print(f"IN DENSITY_COMBINED.PY, {density}, {raw_mean}, {raw_std}, {normalized_density}. {apply_normalization}")
         # Create metadata with normalization info
         metadata = {
             "method_used": method_used,

@@ -133,10 +133,6 @@ def target(
         elements, 
         compositions, 
         a=0.9, b=0.1, c=0.9, d=0.1,
-        generation=None, 
-        finalize=None, 
-        get_density_mode="relax", 
-        calculator=None,
         tec_models=None,
     ):
     logging.info(f"a: {a}, b: {b}, c: {c}, d: {d}, compositions: {compositions}")
@@ -156,6 +152,7 @@ def target(
     for i, e in enumerate(elements):
         c = compositions[i]
         density += c * densities_dict[e]
+    print(f"IN TARGET.PY density {density}")
     pred_density = [z_core(density, mean= 8331.903892865434, std=182.21803336559455)]
     pred_density_mean = np.mean(pred_density)
     pred_density_std = np.std(pred_density)
