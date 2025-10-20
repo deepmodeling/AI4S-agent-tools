@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
-from comp_dart.core.interfaces import Target, Constraint, StructureGenerator, Aggregator
+from comp_dart.core.interfaces import Target, Constraint, StructureGenerator, Aggregator, TargetResult
 from comp_dart.core.constraints import apply_constraints
 
 logger = logging.getLogger(__name__)
