@@ -166,12 +166,38 @@ class GeneticAlgorithm:
                             structure,
                             elements=self.elements
                         )
-                individual_results[f"target_{j}"] = result
-                if result.uncertainty is not None:
-                    print(f"    {target.__class__.__name__} target_{j}: {result.value:.6f} ± {result.uncertainty:.6f}")
-                else:
-                    print(f"    {target.__class__.__name__} target_{j}: {result.value:.6f}")
                 
+                # Split the result into mean and std components for reporting
+                # target_2*j represents the mean component
+                # target_2*j+1 represents the std component
+                target_idx = 2 * j
+                individual_results[f"target_{target_idx}"] = TargetResult(
+                    value=result.get_original_value(),  # Use original (non-normalized) value for mean
+                    uncertainty=0.0,
+                    metadata=result.metadata
+                )
+                
+                if result.uncertainty is not None:
+                    individual_results[f"target_{target_idx+1}"] = TargetResult(
+                        value=result.get_original_uncertainty(),  # Use original (non-normalized) uncertainty for std
+                        uncertainty=0.0,
+                        metadata=result.metadata
+                    )
+                else:
+                    # For targets without uncertainty (like DensityTarget), use 0 for std component
+                    individual_results[f"target_{target_idx+1}"] = TargetResult(
+                        value=0.0,
+                        uncertainty=0.0,
+                        metadata=result.metadata
+                    )
+                
+                # Print both mean and std components
+                print(f"    {target.__class__.__name__} target_{target_idx} (mean): {result.get_original_value():.6f}")
+                if result.uncertainty is not None:
+                    print(f"    {target.__class__.__name__} target_{target_idx+1} (std): {result.get_original_uncertainty():.6f}")
+                else:
+                    print(f"    {target.__class__.__name__} target_{target_idx+1} (std): 0.000000")
+            
             results.append(individual_results)
             
         return results
@@ -240,7 +266,30 @@ class GeneticAlgorithm:
                     )
                 else:
                     result = target.predict(constrained_comp, structure, elements=self.elements)
-            target_results[f"target_{i}"] = result  # Pass the full TargetResult object
+            
+            # Split the result into mean and std components for fitness calculation
+            # target_2*i represents the mean component
+            # target_2*i+1 represents the std component
+            target_idx = 2 * i
+            target_results[f"target_{target_idx}"] = TargetResult(
+                value=result.get_original_value(),  # Use original (non-normalized) value for mean
+                uncertainty=0.0,
+                metadata=result.metadata
+            )
+            
+            if result.uncertainty is not None:
+                target_results[f"target_{target_idx+1}"] = TargetResult(
+                    value=result.get_original_uncertainty(),  # Use original (non-normalized) uncertainty for std
+                    uncertainty=0.0,
+                    metadata=result.metadata
+                )
+            else:
+                # For targets without uncertainty (like DensityTarget), use 0 for std component
+                target_results[f"target_{target_idx+1}"] = TargetResult(
+                    value=0.0,
+                    uncertainty=0.0,
+                    metadata=result.metadata
+                )
         
         print(f"  Target results for fitness evaluation: {target_results}")
         # Aggregate results into fitness score
@@ -527,7 +576,34 @@ class GeneticAlgorithm:
                         )
                     else:
                         result = target.predict(best_individual, structure, elements=self.elements)
-                target_values.append((f"target_{i}", result.value, result.uncertainty, result))
+                
+                # Split the result into mean and std components for final reporting
+                # target_2*i represents the mean component
+                # target_2*i+1 represents the std component
+                target_idx = 2 * i
+                mean_result = TargetResult(
+                    value=result.get_original_value(),
+                    uncertainty=result.get_original_uncertainty(),
+                    metadata=result.metadata
+                )
+                
+                target_values.append((f"target_{target_idx}", mean_result.value, mean_result.uncertainty, mean_result))
+                
+                if result.uncertainty is not None:
+                    std_result = TargetResult(
+                        value=result.get_original_uncertainty(),
+                        uncertainty=0.0,
+                        metadata=result.metadata
+                    )
+                    target_values.append((f"target_{target_idx+1}", std_result.value, std_result.uncertainty, std_result))
+                else:
+                    # For targets without uncertainty (like DensityTarget), use 0 for std component
+                    std_result = TargetResult(
+                        value=0.0,
+                        uncertainty=0.0,
+                        metadata=result.metadata
+                    )
+                    target_values.append((f"target_{target_idx+1}", std_result.value, std_result.uncertainty, std_result))
             
             # Print detailed generation information
             print(f"\nGeneration {generation+1} Summary:")

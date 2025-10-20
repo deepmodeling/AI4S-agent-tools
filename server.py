@@ -238,6 +238,10 @@ def run_ga(
     )
     
     # Set target normalization parameters for fitness calculation
+    # target_0: property0 mean
+    # target_1: property0 std 
+    # target_2: property1 mean
+    # target_3: property1 std
     ga.target_normalization = {
         "target_0": {
             "apply_normalization": property0_apply_norm,
