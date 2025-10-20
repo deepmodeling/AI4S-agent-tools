@@ -127,9 +127,10 @@ class GeneticAlgorithm:
                 # Use structures if this target requires them, otherwise None
                 structure = structures[0] if structures and target.requires_structure else None
                 
-                # Check if we have normalization parameters for this target
-                has_normalization = hasattr(self, 'target_normalization') and f"target_{j}" in self.target_normalization
-                norm_params = self.target_normalization.get(f"target_{j}", {}) if has_normalization else {}
+                # Check if we have normalization parameters for this target's mean component
+                mean_target_idx = 2 * j
+                has_normalization = hasattr(self, 'target_normalization') and f"target_{mean_target_idx}" in self.target_normalization
+                norm_params = self.target_normalization.get(f"target_{mean_target_idx}", {}) if has_normalization else {}
                 
                 # For targets that need element information, pass the elements parameter
                 if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
@@ -238,10 +239,11 @@ class GeneticAlgorithm:
             structure = structures[0] if structures and target.requires_structure else None
             # For targets that need element information, pass the elements parameter
             if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
-                # Check if we have normalization parameters for this target
-                if hasattr(self, 'target_normalization') and f"target_{i}" in self.target_normalization:
+                # Check if we have normalization parameters for this target's mean component
+                mean_target_idx = 2 * i
+                if hasattr(self, 'target_normalization') and f"target_{mean_target_idx}" in self.target_normalization:
                     print(self.target_normalization)
-                    norm_params = self.target_normalization[f"target_{i}"]
+                    norm_params = self.target_normalization[f"target_{mean_target_idx}"]
                     result = target.predict(
                         constrained_comp, 
                         structure, 
@@ -253,9 +255,10 @@ class GeneticAlgorithm:
                 else:
                     result = target.predict(constrained_comp, structure, elements=self.elements)
             else:
-                # Check if we have normalization parameters for this target
-                if hasattr(self, 'target_normalization') and f"target_{i}" in self.target_normalization:
-                    norm_params = self.target_normalization[f"target_{i}"]
+                # Check if we have normalization parameters for this target's mean component
+                mean_target_idx = 2 * i
+                if hasattr(self, 'target_normalization') and f"target_{mean_target_idx}" in self.target_normalization:
+                    norm_params = self.target_normalization[f"target_{mean_target_idx}"]
                     result = target.predict(
                         constrained_comp, 
                         structure,
@@ -549,9 +552,10 @@ class GeneticAlgorithm:
                 structure = structures[0] if structures and target.requires_structure else None
                 # Always pass elements to predict method
                 if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
-                    # Check if we have normalization parameters for this target
-                    if hasattr(self, 'target_normalization') and f"target_{i}" in self.target_normalization:
-                        norm_params = self.target_normalization[f"target_{i}"]
+                    # Check if we have normalization parameters for this target's mean component
+                    mean_target_idx = 2 * i
+                    if hasattr(self, 'target_normalization') and f"target_{mean_target_idx}" in self.target_normalization:
+                        norm_params = self.target_normalization[f"target_{mean_target_idx}"]
                         result = target.predict(
                             best_individual, 
                             structure, 
@@ -563,9 +567,10 @@ class GeneticAlgorithm:
                     else:
                         result = target.predict(best_individual, structure, elements=self.elements)
                 else:
-                    # Check if we have normalization parameters for this target
-                    if hasattr(self, 'target_normalization') and f"target_{i}" in self.target_normalization:
-                        norm_params = self.target_normalization[f"target_{i}"]
+                    # Check if we have normalization parameters for this target's mean component
+                    mean_target_idx = 2 * i
+                    if hasattr(self, 'target_normalization') and f"target_{mean_target_idx}" in self.target_normalization:
+                        norm_params = self.target_normalization[f"target_{mean_target_idx}"]
                         result = target.predict(
                             best_individual, 
                             structure,
