@@ -173,14 +173,14 @@ class GeneticAlgorithm:
                 # target_2*j+1 represents the std component
                 target_idx = 2 * j
                 individual_results[f"target_{target_idx}"] = TargetResult(
-                    value=result.get_original_value(),  # Use original (non-normalized) value for mean
+                    value=result.value,  # Use normalized value for mean
                     uncertainty=0.0,
                     metadata=result.metadata
                 )
                 
                 if result.uncertainty is not None:
                     individual_results[f"target_{target_idx+1}"] = TargetResult(
-                        value=result.get_original_uncertainty(),  # Use original (non-normalized) uncertainty for std
+                        value=result.uncertainty,  # Use normalized uncertainty for std
                         uncertainty=0.0,
                         metadata=result.metadata
                     )
@@ -275,14 +275,14 @@ class GeneticAlgorithm:
             # target_2*i+1 represents the std component
             target_idx = 2 * i
             target_results[f"target_{target_idx}"] = TargetResult(
-                value=result.get_original_value(),  # Use original (non-normalized) value for mean
+                value=result.value,  # Use normalized value for mean
                 uncertainty=0.0,
                 metadata=result.metadata
             )
             
             if result.uncertainty is not None:
                 target_results[f"target_{target_idx+1}"] = TargetResult(
-                    value=result.get_original_uncertainty(),  # Use original (non-normalized) uncertainty for std
+                    value=result.uncertainty,  # Use normalized uncertainty for std
                     uncertainty=0.0,
                     metadata=result.metadata
                 )
@@ -587,7 +587,7 @@ class GeneticAlgorithm:
                 # target_2*i+1 represents the std component
                 target_idx = 2 * i
                 mean_result = TargetResult(
-                    value=result.get_original_value(),
+                    value=result.get_original_value(),  # Use original (non-normalized) value for reporting
                     uncertainty=result.get_original_uncertainty(),
                     metadata=result.metadata
                 )
@@ -596,7 +596,7 @@ class GeneticAlgorithm:
                 
                 if result.uncertainty is not None:
                     std_result = TargetResult(
-                        value=result.get_original_uncertainty(),
+                        value=result.get_original_uncertainty(),  # Use original (non-normalized) uncertainty for reporting
                         uncertainty=0.0,
                         metadata=result.metadata
                     )
@@ -698,13 +698,14 @@ class GeneticAlgorithm:
         print(f"{'='*60}")
         print(f"Elements: {self.elements}")
         print(f"Best Composition: {[f'{x:.4f}' for x in best_individual]}")
-        for target_name, value, uncertainty, result_obj in target_values:
-            original_value = result_obj.get_original_value()
-            original_uncertainty = result_obj.get_original_uncertainty()
-            if uncertainty is not None:
-                print(f"{target_name}: {original_value:.6f} ± {original_uncertainty:.6f} (normalized: {value:.6f} ± {uncertainty:.6f})")
+        for target_name, original_value, original_uncertainty, result_obj in target_values:
+            # Get normalized values for display
+            normalized_value = result_obj.value
+            normalized_uncertainty = result_obj.uncertainty
+            if original_uncertainty is not None:
+                print(f"{target_name}: {original_value:.6f} ± {original_uncertainty:.6f} (normalized: {normalized_value:.6f} ± {normalized_uncertainty:.6f})")
             else:
-                print(f"{target_name}: {original_value:.6f} (normalized: {value:.6f})")
+                print(f"{target_name}: {original_value:.6f} (normalized: {normalized_value:.6f})")
         print(f"Fitness Score: {best_score:.6f}")
         print("="*60)
         
