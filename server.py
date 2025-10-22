@@ -1,7 +1,7 @@
 import argparse
 import logging
 import sys
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 from pathlib import Path
 
 from dp.agent.server import CalculationMCPServer
@@ -68,7 +68,11 @@ def run_ga(
     property0_raw_std: Optional[float] = None,
     property1_apply_norm: bool = False,
     property1_raw_mean: Optional[float] = None,
-    property1_raw_std: Optional[float] = None
+    property1_raw_std: Optional[float] = None,
+    # New parameters for structure template handling
+    template_path: Optional[Union[str, Path]] = None,
+    elements_to_replace: Union[List[str], str] = "all",
+    supercell_factor: Optional[List[int]] = None
 ) -> Dict:
     """
     Run genetic algorithm for composition optimization with modular framework.
@@ -176,6 +180,16 @@ def run_ga(
             
         property1_raw_std (float, optional): Raw standard deviation value for property1 z-score normalization.
             Required if property1_apply_norm is True.
+            
+        template_path (str or Path, optional): Path to template structure file (CIF format) or 
+            packing type ("fcc", "bcc", "hcp"). If not provided, defaults to "fcc-Ni" template.
+            
+        elements_to_replace (list or str): List of elements to replace in the template structure 
+            or "all" to replace all elements. Defaults to "all".
+            
+        supercell_factor (list, optional): Supercell expansion factors [x, y, z]. 
+            Will be passed as 'supercell_size' to TemplateLatticeFiller. 
+            Defaults to [5, 5, 5].
 
     Returns:
         dict with best_individual (list): The optimized composition with the highest fitness score.
@@ -253,8 +267,12 @@ def run_ga(
         print(f"Unknown method for property1: {property1_method}")
         targets.append(None)
 
-    # Create structure generator
-    structure_generator = TemplateLatticeFiller()
+    # Create structure generator with new template parameters
+    structure_generator = TemplateLatticeFiller(
+        template_path=template_path,
+        elements_to_replace=elements_to_replace,
+        supercell_factor=supercell_factor
+    )
 
     # Create aggregator
     # Map weights to targets
@@ -271,9 +289,12 @@ def run_ga(
     print(f"Weight configuration: {weights}")
     aggregator = WeightedAggregator(weights)
 
+    # Filter out None targets
+    valid_targets = [target for target in targets if target is not None]
+    
     # Create genetic algorithm using the new modular framework
     ga = GeneticAlgorithm(
-        targets=targets,
+        targets=valid_targets,
         constraints=constraint_objects,
         structure_generator=structure_generator,
         aggregator=aggregator,

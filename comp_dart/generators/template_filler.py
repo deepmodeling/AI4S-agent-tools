@@ -1,7 +1,8 @@
 import numpy as np
 import copy
 import os
-from typing import List, Any
+from typing import List, Any, Union
+from pathlib import Path
 from comp_dart.core.interfaces import StructureGenerator
 from pymatgen.core import Structure
 from pymatgen.core.structure import Element
@@ -13,33 +14,37 @@ STRUCT_TEMPLATE_DIR = "/mcp_server/comp-dart-gitlab/struct_template"
 DEFAULT_TEMPLATE_PATH = os.path.join(STRUCT_TEMPLATE_DIR, "fcc-Ni_mp-23_conventional_standard.cif")
 
 
-def mk_template_supercell(packing: str):
+def mk_template_supercell(packing: str, supercell_factor: List[int] = None):
     """
     Create a supercell from a template structure based on packing type.
     
     Args:
         packing: Type of packing (fcc, bcc, hcp)
+        supercell_factor: Supercell expansion factors [x, y, z]
         
     Returns:
         Supercell structure
     """
+    if supercell_factor is None:
+        supercell_factor = [5, 5, 5]
+        
     if "fcc" in packing:
         template_file = os.path.join(STRUCT_TEMPLATE_DIR, "fcc-Ni_mp-23_conventional_standard.cif")
         s = Structure.from_file(template_file)
-        return s.make_supercell([5, 5, 5])
+        return s.make_supercell(supercell_factor)
     elif "bcc" in packing:
         template_file = os.path.join(STRUCT_TEMPLATE_DIR, "bcc-Fe_mp-13_conventional_standard.cif")
         s = Structure.from_file(template_file)
-        return s.make_supercell([5, 5, 5])
+        return s.make_supercell(supercell_factor)
     elif "hcp" in packing:
         template_file = os.path.join(STRUCT_TEMPLATE_DIR, "hcp-Co_mp-25_conventional_standard.cif")
         s = Structure.from_file(template_file)
-        return s.make_supercell([5, 5, 5])
+        return s.make_supercell(supercell_factor)
     else:
         # Default to fcc
         template_file = os.path.join(STRUCT_TEMPLATE_DIR, "fcc-Ni_mp-23_conventional_standard.cif")
         s = Structure.from_file(template_file)
-        return s.make_supercell([5, 5, 5])
+        return s.make_supercell(supercell_factor)
 
 
 def normalize_composition(composition: List[float], total: int = 100) -> List[int]:
@@ -100,17 +105,36 @@ class TemplateLatticeFiller(StructureGenerator):
     """
     Structure generator that fills template lattices with elements based on composition.
     """
-    def __init__(self, template_path: str = None):
+    def __init__(self, template_path: Union[str, Path] = None, 
+                 elements_to_replace: Union[List[str], str] = "all",
+                 supercell_factor: List[int] = None):
         """
         Initialize template lattice filler.
         
         Args:
-            template_path: Path to template structure file (CIF format)
+            template_path: Path to template structure file (CIF format) or packing type (fcc, bcc, hcp)
+            elements_to_replace: List of elements to replace or "all" for all elements
+            supercell_factor: Supercell expansion factors [x, y, z]
         """
         if template_path is None:
             self.template_path = DEFAULT_TEMPLATE_PATH
         else:
-            self.template_path = template_path
+            # Check if template_path is a file path or packing type
+            if isinstance(template_path, str) and template_path in ["fcc", "bcc", "hcp"]:
+                # It's a packing type, determine the appropriate file
+                packing = template_path
+                if packing == "fcc":
+                    self.template_path = os.path.join(STRUCT_TEMPLATE_DIR, "fcc-Ni_mp-23_conventional_standard.cif")
+                elif packing == "bcc":
+                    self.template_path = os.path.join(STRUCT_TEMPLATE_DIR, "bcc-Fe_mp-13_conventional_standard.cif")
+                elif packing == "hcp":
+                    self.template_path = os.path.join(STRUCT_TEMPLATE_DIR, "hcp-Co_mp-25_conventional_standard.cif")
+            else:
+                # It's a file path
+                self.template_path = template_path
+                
+        self.elements_to_replace = elements_to_replace
+        self.supercell_factor = supercell_factor if supercell_factor is not None else [5, 5, 5]
 
     def generate_structures(self, composition: np.ndarray, elements: List[str]) -> List[Any]:
         """
@@ -125,7 +149,7 @@ class TemplateLatticeFiller(StructureGenerator):
         """
         MAX = 10
         packing = get_packing(elements, composition)
-        supercell = mk_template_supercell(packing)
+        supercell = mk_template_supercell(packing, self.supercell_factor)
         pmg_elements = [Element(e) for e in elements]
 
         atom_num = len(supercell)
