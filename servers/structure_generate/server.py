@@ -1,8 +1,11 @@
-# Standard library imports
+#  Standard library imports
 import argparse
+import copy
+import json
 import logging
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from random import randint
 from typing import List, Optional, Literal, Union, Tuple, Dict, Callable
@@ -21,9 +24,10 @@ from ase.io import read, write
 # Pymatgen imports
 from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
 from pymatgen.io.ase import AseAtomsAdaptor
-from pymatgen.core.structure import Structure
+from pymatgen.core.structure import Structure, PeriodicSite
 from pymatgen.core.surface import SlabGenerator
 from pymatgen.analysis.local_env import CrystalNN
+from pymatgen.analysis.molecule_structure_comparator import CovalentRadius
 from pymatgen.core import Lattice
 
 # Local/custom imports
@@ -73,9 +77,110 @@ mcp = CalculationMCPServer(
 )
 
 
-class StructureResult(TypedDict):
-    structure_paths: Path
-    message: str
+# =============== Tool for materials informatics ===================
+@mcp.tool()
+def get_structure_info(
+    structure_path: Path
+) -> Dict:
+    '''
+    Extract structural information from a given structure file.
+
+    This tool reads a structure file and returns key structural information including 
+    lattice parameters, chemical formula, number of atoms, cell volume, crystallographic 
+    density, and molar mass.
+
+    Args:
+        structure_path (Path): Path to the structure file (e.g., CIF, POSCAR, XYZ).
+
+    Returns:
+        Dict: Dictionary containing:
+            - structure_info (Dict): Dictionary with structural information:
+                - formula: Chemical formula of the structure
+                - formula_dict: Chemical formula as element-count dictionary
+                - natoms: Total number of atoms in the structure
+                - lattice_parameters: Lattice parameters (a, b, c, alpha, beta, gamma)
+                - volume: Unit cell volume in Å³
+                - density: Crystallographic density in g/cm³
+                - molar_mass: Molar mass in g/mol
+                - elements: List of elements present in the structure
+            - message (str): Success or error message
+    '''
+    try:
+        # Read structure using ASE
+        atoms = read(str(structure_path))
+        
+        # Get basic information
+        natoms = len(atoms)
+        formula = atoms.get_chemical_formula()
+        elements = list(set(atoms.get_chemical_symbols()))
+        
+        # Get formula as element-count dictionary
+        formula_dict = {}
+        for symbol in elements:
+            count = atoms.get_chemical_symbols().count(symbol)
+            formula_dict[symbol] = count
+        
+        # Initialize result dictionary
+        structure_info = {
+            'formula': formula,
+            'formula_dict': formula_dict,
+            'natoms': natoms,
+            'elements': elements
+        }
+        
+        # Get lattice parameters if it's a periodic structure
+        if atoms.get_pbc().any():  # Check if any dimension is periodic
+            cell = atoms.get_cell()
+            lattice_params = cell.cellpar()
+            a, b, c, alpha, beta, gamma = lattice_params
+            
+            structure_info.update({
+                'lattice_parameters': {
+                    'a': float(a),
+                    'b': float(b),
+                    'c': float(c),
+                    'alpha': float(alpha),
+                    'beta': float(beta),
+                    'gamma': float(gamma)
+                },
+                'volume': float(atoms.get_volume())
+            })
+            
+            # Calculate density
+            mass = sum(atom.mass for atom in atoms)  # Total mass in amu
+            volume = atoms.get_volume()  # Volume in Å³
+            # Convert to g/cm³: (mass in amu) * (1.66054e-24 g/amu) / (volume in Å³) * (1e24 cm³/Å³)
+            density = (mass * 1.66054) / volume
+            structure_info['density'] = float(density)
+            
+            # Calculate molar mass (g/mol)
+            molar_mass = sum(atom.mass for atom in atoms)
+            structure_info['molar_mass'] = float(molar_mass)
+        else:
+            # Non-periodic structure (molecule)
+            # Calculate molar mass for molecules
+            molar_mass = sum(atom.mass for atom in atoms)
+            structure_info.update({
+                'lattice_parameters': None,
+                'volume': None,
+                'density': None,
+                'molar_mass': float(molar_mass)
+            })
+        
+        logging.info(f"Structure information extracted successfully from: {structure_path}")
+        return {
+            'structure_info': structure_info,
+            'message': 'Structure information extracted successfully.'
+        }
+        
+    except Exception as e:
+        logging.error(f"Failed to extract structure information: {str(e)}", exc_info=True)
+        return {
+            'structure_info': {},
+            'message': f"Failed to extract structure information: {str(e)}"
+        }
+
+
 
 # ================ Tool to build structures via ASE ===================
 def _prim2conven(ase_atoms: Atoms) -> Atoms:
@@ -105,7 +210,7 @@ def build_bulk_structure_by_template(
     c: Optional[float] = None,
     alpha: Optional[float] = None,
     output_file: str = "structure_bulk.cif"
-) -> StructureResult:
+) -> Dict:
     """
     Build a bulk crystal structure using ASE.
 
@@ -145,7 +250,7 @@ def build_bulk_structure_by_wyckoff(
     spacegroup: str | int,
     wyckoff_positions: list,
     output_file: str = 'structure_bulk.cif'
-) -> StructureResult:
+) -> Dict:
     '''
     Generates crystal structures from complete crystallographic specification using Wyckoff positions.
     Requires user to provide ALL crystallographic parameters: lattice parameters, space group, 
@@ -171,7 +276,7 @@ def build_bulk_structure_by_wyckoff(
             based on file extension (.cif, .vasp, .xyz, etc.). Default 'structure_bulk.cif'.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_path (Path): Path to the generated crystal structure file
             - message (str): Success message or detailed error information
 
@@ -212,7 +317,7 @@ def make_supercell_structure(
     structure_path: Path,
     supercell_matrix: list[int] = [1, 1, 1],
     output_file: str = 'structure_supercell.cif'
-) -> StructureResult:
+) -> Dict:
     '''
     Generate a supercell from an existing atomic structure using ASE.
 
@@ -230,7 +335,7 @@ def make_supercell_structure(
             Default 'structure_supercell.cif'.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Path to the generated supercell structure file
             - message (str): Success or error message with supercell matrix details
             
@@ -260,7 +365,7 @@ def make_supercell_structure(
 def build_molecule_structure_from_g2database(
     molecule_name: str,
     output_file: str = 'structure_molecule.xyz'
-) -> StructureResult:
+) -> Dict:
     '''
     Build a molecule structure using ASE.
 
@@ -286,7 +391,7 @@ def build_molecule_structure_from_g2database(
         output_file (str): Path to save the CIF structure file. Default 'structure_molecule.xyz'.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Path to the generated structure file
             - message (str): Success or error message
 
@@ -318,7 +423,7 @@ def build_molecule_structure_from_g2database(
 def build_molecule_structures_from_smiles(
     smiles: str,
     output_file: str = 'structure_molecule.xyz'
-) -> StructureResult:
+) -> Dict:
     '''
     Build a molecule structure from SMILES string using Open Babel.
 
@@ -331,47 +436,61 @@ def build_molecule_structures_from_smiles(
         output_file (str): Path to save the XYZ structure file. Default 'structure_molecule.xyz'.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Path to the generated structure file
             - message (str): Success or error message
     '''
-    # Open Babel imports
-    import openbabel.openbabel as ob
+    tmp_json = Path(tempfile.mktemp(suffix=".json"))
+
     try:
-        # Initialize converters
-        smi_to_xyz = ob.OBConversion()
-        smi_to_xyz.SetInAndOutFormats("smi", "xyz")
+        # Run Open Babel in a separate process
+        result = subprocess.run(
+            ["obabel", "-ismi", "-", "-oxyz", "-O", output_file, "--gen3d"],
+            input=smiles.encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False  # we handle errors manually
+        )
 
-        # Initialize 3D builder
-        ob_builder = ob.OBBuilder()
-
-        # Create molecule object from SMILES
-        mol = ob.OBMol()
-        if not smi_to_xyz.ReadString(mol, smiles):
-            raise ValueError(f"Cannot parse SMILES: {smiles}")
-
-        # Add hydrogens
-        mol.AddHydrogens()
-
-        # Generate 3D structure
-        if not ob_builder.Build(mol):
-            logging.warning("3D structure build may be incomplete")
-
-        # Write to file
-        if not smi_to_xyz.WriteFile(mol, str(output_file)):
-            raise RuntimeError("Failed to write XYZ file")
-
-        logging.info(f'Molecule structure saved to: {output_file}')
-        return {
-            'structure_paths': Path(output_file),
-            'message': f'Molecule structure from SMILES "{smiles}" built successfully.'
+        # Write subprocess result to a JSON file
+        data = {
+            "success": result.returncode == 0,
+            "return_code": result.returncode,
+            "output_file": str(Path(output_file).resolve()),
+            "stdout": result.stdout.decode(errors="ignore"),
+            "stderr": result.stderr.decode(errors="ignore"),
+            "message": (
+                "Molecule structure built successfully."
+                if result.returncode == 0
+                else "Open Babel failed to build structure."
+            )
         }
+
+        with open(tmp_json, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
     except Exception as e:
-        logging.error(
-            f'Molecule structure building failed: {str(e)}', exc_info=True)
+        data = {
+            "success": False,
+            "error": str(e),
+            "message": "Unexpected failure while calling Open Babel."
+        }
+        with open(tmp_json, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    # Read back from JSON (avoids direct data coupling)
+    with open(tmp_json, "r", encoding="utf-8") as f:
+        result_data = json.load(f)
+
+    if result_data.get("success", False):
         return {
-            'structure_paths': None,
-            'message': f'Molecule structure building failed: {str(e)}'
+            "structure_paths": Path(result_data["output_file"]),
+            "message": result_data["message"]
+        }
+    else:
+        return {
+            "structure_paths": None,
+            "message": f"Open Babel failed: {result_data.get('stderr', '') or result_data.get('message', '')}"
         }
 
 
@@ -382,7 +501,7 @@ def add_cell_for_molecules(
         [10.0, 0.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 10.0]],
     vacuum: Optional[float] = 5.0,
     output_file: str = 'structure_molecule.cif'
-) -> StructureResult:
+) -> Dict:
     '''
     Add a cell to an existing molecule structure, suitable for ABACUS molecular calculations.
 
@@ -395,7 +514,7 @@ def add_cell_for_molecules(
         output_file (str): Path to save the CIF file with the added cell. Default 'structure_molecule.cif'.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Path to the generated structure file
             - message (str): Success or error message
 
@@ -426,15 +545,14 @@ def add_cell_for_molecules(
 def build_surface_slab(
     material_path: Path = None,
     miller_index: List[int] = (1, 0, 0),
-    layers: int = 4,
+    layers: int = None,
     thickness: float = None,
-    vacuum: float = None,
-    vacuum_mode: str = 'auto',
+    vacuum: float = 0,
     termination: Union[int, float, str, Callable, None] = "auto",
     return_all: bool = False,
     algo_opts: dict = None,
     bonds: Dict = None,
-    repair: bool = True,
+    repair: bool = False,
     output_file: str = 'structure_slab.cif'
 ) -> dict:
     """
@@ -450,14 +568,13 @@ def build_surface_slab(
         miller_index (List[int]):  
             Miller indices (h, k, l). Default `(1, 0, 0)`.  
         layers (int):  
-            Minimum number of atomic layers in the slab. Ignored if `thickness` is set.  
+            Minimum number of atomic layers in the slab in unit of hkl plane numbers. When specified, 
+            in_unit_planes will be set to True in SlabGenerator.  
         thickness (float):  
-            Slab thickness in Å. Overrides `layers` if provided.  
+            Slab thickness in Å. When specified, 
+            in_unit_planes will be set to False in SlabGenerator.  
         vacuum (float):  
-            Vacuum thickness in Å. If `None` and `vacuum_mode='auto'`, 
-            a heuristic is applied.  
-        vacuum_mode (str):  
-            Vacuum mode, one of `'absolute'`, `'relative'`, `'auto'`.  
+            Vacuum thickness in Å if thickness is provided or unit of hkl plane numbers and if layers is provided.
         termination (int | float | Callable | str | None):  
             Termination selection strategy:  
               - `int`: index of the slab in the generated list  
@@ -469,9 +586,11 @@ def build_surface_slab(
         algo_opts (dict):  
             Extra options for `SlabGenerator`.  
         bonds (dict):  
-            Optional bond length dict for slab generation.  
+            Optional bond length dict for slab generation. If repair=True and bonds is not provided,
+            default bonds will be generated based on covalent radii of elements in the structure.  
         repair (bool):  
-            Whether to repair broken bonds in slab generation.  
+            Whether to repair broken bonds in slab generation. Uses bonds parameter or generates
+            default bonds if not provided.  
         output_file (str):  
             Output CIF filename. If `return_all=True`, multiple files will be created.  
 
@@ -480,35 +599,63 @@ def build_surface_slab(
             - `structure_paths` (Path | List[Path]): generated CIF file(s).  
             - `message` (str): status message.  
             - `meta` (dict): metadata including number of terminations and shift values.  
+    
+    Raises:
+        ValueError: If both layers and thickness are specified, or neither is specified.
     """
     try:
+        warning_msg = ""
         # --- Input normalization ---
         if material_path is not None:
             pmg_bulk = Structure.from_file(str(material_path))
         else:
             raise ValueError("No input structure provided.")
         
+        # --- Parameter validation ---
+        if (layers is None) == (thickness is None):
+            raise ValueError("Exactly one of 'layers' or 'thickness' must be specified.")
+        
         # --- Slab size and vacuum ---
-        min_slab_size = layers if thickness is None else thickness
-        if vacuum is None and vacuum_mode == 'auto':
-            c_len = pmg_bulk.lattice.c
-            vacuum = max(10.0, 0.12 * c_len)
+        if layers is not None:
+            min_slab_size = layers
+            in_unit_planes = True
+            warning_msg += f"Using unit plane layers (hkl plane number) for slab and vacuum size."
+        else:
+            min_slab_size = thickness
+            in_unit_planes = False
+            warning_msg += f"Using unit plane thickness (angstrom) for slab and vacuum size."            
             
         algo_opts = algo_opts or {}
+        # https://github.com/materialsproject/pymatgen/blob/v2025.6.14/src/pymatgen/core/surface.py#L869
+        print(f"Initializing SlabGenerator with slab size: {min_slab_size} {'layers' if in_unit_planes else 'Å'}")
         slab_gen = SlabGenerator(
             initial_structure=pmg_bulk,
             miller_index=tuple(int(x) for x in miller_index),
             min_slab_size=min_slab_size,
             min_vacuum_size=vacuum,
+            in_unit_planes=in_unit_planes,
             primitive=algo_opts.get("primitive", False),
-            max_normal_search=algo_opts.get("max_normal_search", 5),
         )
         # --- Generate slabs ---
         # Process bonds parameter to handle JSON serialization issues
         processed_bonds = None
+
+        if repair:
+            colvalent_radius = CovalentRadius.radius
+            all_elements = [elem.symbol for elem in pmg_bulk.composition.elements]
+            default_bonds = {
+                (elem1, elem2): (colvalent_radius[elem1] + colvalent_radius[elem2]) * 1.2
+                for elem1 in all_elements
+                for elem2 in all_elements
+            }
+            print(default_bonds)
+            
+            # Use default bonds unless user provided bonds
+            processed_bonds = default_bonds
+
         if bonds is not None:
             # Convert bonds dictionary to the format expected by pymatgen
-            processed_bonds = {}
+            processed_bonds = processed_bonds or {}
             for key, distance in bonds.items():
                 # Handle case where keys might be strings like "C,H" due to JSON serialization
                 if isinstance(key, str) and ',' in key:
@@ -518,58 +665,55 @@ def build_surface_slab(
                     # Key is already in correct format (tuple or other)
                     processed_bonds[key] = distance
         print(processed_bonds)
-        all_slabs = slab_gen.get_slabs(bonds=processed_bonds, repair=repair)
-        print(len(all_slabs))
+
+        # Check if repair is enabled but no bonds are provided
+        if repair and not bonds:
+            warning_msg = "Info: Using default bonds based on covalent radii for bond repair. "
+        if not repair:
+            warning_msg += "Info: No bond repair will be performed. If covalent bonds are wrongly broken, please consider turning on bond repair."
+
+        # https://github.com/materialsproject/pymatgen/blob/v2025.6.14/src/pymatgen/core/surface.py#L1195
+        print(f"Getting slabs with slab generation options: {algo_opts}")
+        all_slabs = slab_gen.get_slabs(
+            bonds=processed_bonds, 
+            repair=repair,
+            ftol=0.2,      # default 0.1
+            ztol=0.1,      # default 0.1
+            tol=0.05        # default 0.0
+        )
+        
         if not all_slabs:
             raise ValueError("No slabs generated.")
 
-        # --- Default selector ---
-        def default_selector(slabs):
-            candidates = [s for s in slabs if not s.is_polar()]
-            if not candidates:
-                candidates = slabs
-            nn = CrystalNN()
-            scores = []
-            for s in tqdm(candidates, desc="Scoring slabs"):
-                stoich_penalty = len(s.composition.elements)  # placeholder heuristic
-                sym_penalty = 0 if s.is_symmetric() else 1
-                try:
-                    sg = nn.get_bonded_structure(s)
-                    avg_cn = np.mean([len(sg.get_connected_sites(i)) for i in range(len(s.sites))])
-                except Exception:
-                    avg_cn = 0
-                score = -10 * stoich_penalty - sym_penalty + avg_cn
-                scores.append(score)
-            return candidates[int(np.argmax(scores))]
-
         # --- Termination selection ---
-        if return_all:
-            chosen_slabs = all_slabs
-        elif isinstance(termination, int):
+        if isinstance(termination, int):
             chosen_slabs = [all_slabs[termination]]
         elif isinstance(termination, float):
             chosen_slabs = [s for s in all_slabs if abs(s.shift - termination) < 1e-3] or [all_slabs[0]]
         elif callable(termination):
             chosen_slabs = [termination(all_slabs)]
         else:
-            chosen_slabs = [default_selector(all_slabs)]
+            chosen_slabs = all_slabs
 
         # --- Write output ---
         output_paths = []
         for i, slab in enumerate(chosen_slabs):
             slab_atoms = AseAtomsAdaptor.get_atoms(slab)
-            slab_atoms.center(vacuum=vacuum, axis=2)
             out = output_file if not return_all else f"{Path(output_file).stem}_{i}.cif"
             write(out, slab_atoms)
             output_paths.append(Path(out))
 
+        success_message = "Surface slab successfully generated."
+        if warning_msg:
+            success_message = warning_msg + success_message
+
         return {
             "structure_paths": output_paths if return_all else output_paths[0],
-            "message": "Surface slab successfully generated.",
+            "message": success_message,
             "meta": {
                 "num_terminations": len(all_slabs),
-                "shifts": [s.shift for s in all_slabs],
-                "chosen_shifts": [s.shift for s in chosen_slabs],
+                "shifts": [float(s.shift) for s in all_slabs],
+                "chosen_shifts": [float(s.shift) for s in chosen_slabs],
             },
         }
     except Exception as e:
@@ -584,7 +728,7 @@ def build_surface_adsorbate(
     shift: Optional[Union[List[float], str]] = [0.5, 0.5],
     height: Optional[float] = 2.0,
     output_file: str = 'structure_adsorbate.cif'
-) -> StructureResult:
+) -> Dict:
     '''
     Build a surface-adsorbate structure using ASE.
 
@@ -601,7 +745,7 @@ def build_surface_adsorbate(
         output_file (str): Path to save the CIF file. Default 'structure_adsorbate.cif'.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Path to the generated structure file
             - message (str): Success or error message
     '''
@@ -660,7 +804,7 @@ def build_surface_interface(
     interface_distance: float = 2.5,
     max_strain: float = 0.2,
     output_file: str = 'structure_interface.cif'
-) -> StructureResult:
+) -> Dict:
     '''
     Build an interface between two slab structures with lattice matching and strain checking.
 
@@ -674,7 +818,7 @@ def build_surface_interface(
         output_file (str): Path to save the CIF file. Default 'structure_interface.cif'.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Path to the generated structure file
             - message (str): Success or error message
     '''
@@ -739,7 +883,7 @@ def build_surface_interface(
 def generate_calypso_structures(
     species: List[str],
     n_tot: int
-) -> StructureResult:
+) -> Dict:
     '''
     Generate crystal structures using CALYPSO with specified chemical species.
     
@@ -754,7 +898,7 @@ def generate_calypso_structures(
             will be created in a separate subdirectory and then collected into the final output.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Directory path containing generated POSCAR files 
               (outputs/poscars_for_optimization/)
             - message (str): Success or error message with generation details
@@ -1009,18 +1153,127 @@ FixCell = F
             'message': f'Calypso generated POSCAR files collected failed: {str(e)}'
         }
 
+
+# ================ Tool to make doping structures ===================
+@mcp.tool()
+def make_doped_structure(
+    structure_path: Path,
+    doping_elements: Dict[str, dict],
+    output_file: str = 'structure_doped.cif'
+) -> Dict:
+    '''
+    Create a doped structure by replacing specific elements with others at given concentrations.
+
+    This tool takes a crystal structure and replaces a fraction of specified elements 
+    with doping elements according to given concentrations. For example, you can replace 
+    20% of Lu atoms in a structure with Y atoms.
+
+    Args:
+        structure_path (Path): Path to the input structure file (e.g., CIF, POSCAR).
+        doping_elements (Dict[str, float]): Dictionary mapping elements to be replaced 
+            to their replacement elements and concentrations. Format: 
+            {"original_element": {"replacement_element": concentration, ...}, ...}
+            Concentration is a value between 0 and 1 representing the molar or atomic fraction of 
+            original elements to be replaced.
+        output_file (str): Path to save the doped structure file. Default 'structure_doped.cif'.
+
+    Returns:
+        Dict: Dictionary containing:
+            - structure_paths (Path): Path to the generated doped structure file
+            - message (str): Success or error message
+
+    Example:
+        To replace 20% of Lu atoms with Y and 10% with Er:
+        doping_elements = {"Lu": {"Y": 0.2, "Er": 0.1}}
+    '''
+    try:        
+        # Read the structure
+        structure = Structure.from_file(str(structure_path))
+        doped_structure = copy.deepcopy(structure)
+        
+        # Keep track of warnings
+        warning_messages = []
+        
+        # Process each element to be doped
+        for original_element, replacements in doping_elements.items():
+            # Find all sites with the original element
+            original_sites = [i for i, site in enumerate(structure.sites) 
+                            if site.species_string == original_element]
+            total_original = len(original_sites)
+            
+            if total_original == 0:
+                logging.warning(f"No {original_element} atoms found in the structure")
+                warning_messages.append(f"No {original_element} atoms found in the structure")
+                continue
+                
+            # Shuffle the sites to randomly select which ones to replace
+            np.random.shuffle(original_sites)
+            current_position = 0
+            
+            # Process each replacement element
+            for replacement_element, concentration in replacements.items():
+                # Calculate number of atoms to replace
+                num_to_replace = int(concentration * total_original)
+                
+                # Add warning if the number of atoms to replace is very small compared to the intended concentration
+                intended_num = concentration * total_original
+                if intended_num > 0 and num_to_replace == 0:
+                    warning_msg = (f"Warning: Intended to replace {intended_num:.2f} atoms of {original_element} with {replacement_element} "
+                                  f"(concentration {concentration}), but this results in 0 atoms being replaced due to small system size.")
+                    logging.warning(warning_msg)
+                    warning_messages.append(warning_msg)
+                
+                # Replace atoms
+                for i in range(num_to_replace):
+                    if current_position < len(original_sites):
+                        site_idx = original_sites[current_position]
+                        site = doped_structure.sites[site_idx]
+                        
+                        # Create new site with replacement element
+                        new_site = PeriodicSite(
+                            species=replacement_element,
+                            coords=site.frac_coords,
+                            lattice=doped_structure.lattice,
+                            properties=site.properties,
+                            coords_are_cartesian=False
+                        )
+                        doped_structure[site_idx] = new_site
+                        current_position += 1
+                        
+        # Save the doped structure
+        doped_structure.to(fmt="cif", filename=output_file)
+        logging.info(f'Doped structure saved to: {output_file}')
+        
+        # Construct warning message if there were any warnings
+        if warning_messages:
+            warning_msg = "Warning: " + "; ".join(warning_messages) + ". "
+        else:
+            warning_msg = ""
+            
+        return {
+            'structure_paths': Path(output_file),
+            'message': f'{warning_msg}Structure doped successfully with {doping_elements} in atomic/molar concentration.'
+        }
+        
+    except Exception as e:
+        logging.error(f'Doping structure generation failed: {str(e)}', exc_info=True)
+        return {
+            'structure_paths': None,
+            'message': f'Doping structure generation failed: {str(e)}'
+        }
+
+
 # ================ Tool to generate structures with conditional properties via CrystalFormer ===================
-
-
 @mcp.tool()
 def generate_crystalformer_structures(
     cond_model_type_list: List[str],
     target_value_list: List[float],
     target_type_list: List[str],
-    space_group_list: List[int],
+    space_group: int,
     sample_num: int,
+    random_spacegroup_num: int = 0,
     mc_steps: int = 500
-) -> StructureResult:
+) -> Dict:
     '''
     Generate crystal structures using CrystalFormer with specified conditional properties.
     
@@ -1045,27 +1298,31 @@ def generate_crystalformer_structures(
         target_type_list (List[str]): Type of target optimization for each property. Options:
             'equal', 'greater', 'less', 'minimize'. Note: for 'minimize', use small target values
             to avoid division by zero.
-        space_group_list (List[int]): **MUST BE PROVIDED BY USER** - List of space group numbers (1-230) 
-            that the agent should obtain by asking the user. The agent should never guess or 
-            automatically select these values. Each space group number corresponds to a specific 
-            crystallographic symmetry, and structures will be generated for each specified space group.
-        sample_num (int): Total number of initial samples to generate. This number will be divided 
-            equally among all specified space groups. For example, if sample_num=100 and 2 space 
-            groups are provided, 50 samples will be generated for each space group.
+        space_group (int): **MUST BE PROVIDED BY USER** - Space group number (1-230) that the 
+            agent should obtain by asking the user. The agent should never guess or automatically 
+            select this value.
+            - When random_spacegroup_num=0: Only this user-specified space group will be used
+            - When random_spacegroup_num>0: This serves as the minimum space group number
+        sample_num (int): Total initial number of samples to generate. When random_spacegroup_num=0,
+            all samples use the specified space group. When random_spacegroup_num>0, this total is
+            divided equally among the randomly selected space groups.
+        random_spacegroup_num (int): Number of random space groups to sample. Default 0.
+            - If 0: Generate structures only using the user-specified space_group
+            - If >0: Randomly sample this many space groups from the range [space_group, 230]
+              where space_group is the user-provided minimum value
         mc_steps (int): Number of Monte Carlo steps for structure optimization. Default 500.
 
     Returns:
-        StructureResult: Dictionary containing:
+        Dict: Dictionary containing:
             - structure_paths (Path): Directory path containing generated structure files
             - message (str): Success or error message
 
     Critical Agent Instructions:
-        - ALWAYS ask the user to specify the space group number(s) before using this tool
-        - DO NOT make assumptions about which space group(s) to use
-        - DO NOT automatically select space groups based on other parameters
-        - The user must explicitly provide the space_group parameter value(s)
+        - ALWAYS ask the user to specify the space group number before using this tool
+        - DO NOT make assumptions about which space group to use
+        - DO NOT automatically select a space group based on other parameters
+        - The user must explicitly provide the space_group parameter value
         - If the user doesn't know which space group to use, help them understand the options (1-230)
-        - Multiple space groups can be specified to generate structures with different symmetries
         - All input lists (cond_model_type_list, target_value_list, target_type_list) must have 
           the same length for consistency in multi-objective optimization.
         - Alpha weighting values are automatically set to 1.0 for most targets and 0.01 for 'minimize' targets.
@@ -1100,7 +1357,7 @@ def generate_crystalformer_structures(
         for (idx, target_type) in enumerate(target_type_list):
             if target_type == 'minimize':
                 alpha[idx] = 0.01  # Lower alpha for minimize targets
-        sample_num_per_spg = sample_num // len(space_group_list)
+        sample_num_per_spg = sample_num if random_spacegroup_num == 0 else sample_num // random_spacegroup_num
 
         cmd = [
             'uv', 'run', 'python',
@@ -1110,8 +1367,9 @@ def generate_crystalformer_structures(
             '--target', *[str(item) for item in target_value_list],
             '--target_type', *target_type_list,
             '--alpha', *[str(item) for item in alpha],
-            '--spacegroup', *[str(item) for item in space_group_list],
+            '--spacegroup', str(space_group),
             '--init_sample_num', str(sample_num_per_spg),
+            '--random_spacegroup_num', str(random_spacegroup_num),
             '--mc_steps', str(mc_steps),
             '--output_path', str(cal_output_path)
         ]
@@ -1132,6 +1390,220 @@ def generate_crystalformer_structures(
         return {
             'structure_paths': None,
             'message': f'CrystalFormer Execution failed: {str(e)}'
+        }
+
+
+# ================ Tool to generate amorphous structures ===================
+@mcp.tool()
+def make_amorphous_structure(
+    molecule_paths: List[Path],
+    molecule_numbers: Optional[Union[int, List[int]]] = None,
+    box_size: Optional[List[float]] = None,
+    density: Optional[float] = None,
+    output_file: str = 'structure_amorph.cif'
+) -> Dict:
+    '''
+    Generate an amorphous structure by packing molecules in a box with specified parameters.
+    
+    This tool creates an amorphous structure by placing multiple copies of one or more molecules 
+    in a box. It supports three different modes of operation:
+    
+    Mode 1: Specify box size and density (calculates number of molecules)
+    Mode 2: Specify box size and number of molecules (calculates density)
+    Mode 3: Specify density and number of molecules (calculates box size)
+    
+    In all modes, molecules are placed randomly with attempts to avoid overlaps.
+
+    Args:
+        molecule_paths (List[Path]): list of paths to the molecular structure files (e.g., XYZ).
+        molecule_numbers (Optional[Union[int, List[int]]]): Number of each molecule type to pack in the box.
+            If provided as a single integer, it applies to all molecule types equally.
+            If provided as a list, it must match the length of molecule_paths.
+        box_size (Optional[List[float]]): Box dimensions [a, b, c] in Ångströms. 
+            If provided, box will be created with these dimensions.
+        density (Optional[float]): Target density of the system in g/cm³.
+        output_file (str): Path to save the generated structure file. 
+            Default 'structure_amorph.cif'.
+
+    Returns:
+        Dict: Dictionary containing:
+            - structure_paths (Path): Path to the generated structure file
+            - message (str): Success or error message with details about the generated structure
+            
+    Note:
+        - Exactly two of the three parameters (box_size, density, molecule_numbers) must be provided
+        - Molecules are placed randomly with attempts to avoid overlaps
+        - This is a simplified amorphous model and does not represent a fully 
+          equilibrated amorphous structure
+    '''
+    try:            
+        # Validate input parameters - exactly two of the three must be provided
+        params = [box_size, density, molecule_numbers]
+        num_provided = sum(1 for p in params if p is not None)
+        
+        if num_provided != 2:
+            raise ValueError(f"Invalid combination of parameters provided. Accepted combinations are: box_size, density, molecule_numbers. Please provide exactly two of the three parameters.")
+        
+        # Read the molecules
+        molecules = [read(str(path)) for path in molecule_paths]
+        n_molecule_types = len(molecules)
+        
+        # Handle molecule_numbers parameter
+        if molecule_numbers is not None:
+            if isinstance(molecule_numbers, int):
+                # If a single integer is provided, apply it to all molecule types
+                molecule_numbers = [molecule_numbers] * n_molecule_types
+            elif isinstance(molecule_numbers, list) and len(molecule_numbers) != n_molecule_types:
+                raise ValueError(f"Length of molecule_numbers list ({len(molecule_numbers)}) must match number of molecule types ({n_molecule_types})")
+        else:
+            # molecule_numbers not provided yet, will be calculated in some modes
+            molecule_numbers = [0] * n_molecule_types
+            
+        # Calculate molecular masses in g/mol
+        mol_masses = [sum(atom.mass for atom in mol) for mol in molecules]
+        
+        # Constants
+        avogadro = 6.02214076e23  # mol^-1
+        
+        # Mode 1: box_size and density provided, calculate molecule_numbers
+        if box_size is not None and density is not None and molecule_numbers == [0] * n_molecule_types:
+            # Calculate box volume in Å³
+            box_volume_a3 = box_size[0] * box_size[1] * box_size[2]
+            # Convert to cm³
+            box_volume_cm3 = box_volume_a3 * 1e-24
+            # Calculate total mass in g
+            total_mass_g = box_volume_cm3 * density
+            
+            # Distribute molecules equally among types (can be enhanced later)
+            n_molecules_total = int((total_mass_g * avogadro) / sum(mol_masses))
+            molecule_numbers = [n_molecules_total // n_molecule_types] * n_molecule_types
+            mode_desc = f"Box size {box_size} Å, density {density} g/cm³, calculated {sum(molecule_numbers)} total molecules"
+            
+        # Mode 2: box_size and molecule_numbers provided, calculate density
+        elif box_size is not None and molecule_numbers is not None and density is None:
+            # Calculate box volume in Å³
+            box_volume_a3 = box_size[0] * box_size[1] * box_size[2]
+            # Convert to cm³
+            box_volume_cm3 = box_volume_a3 * 1e-24
+            
+            # Calculate total mass in g
+            total_mass_g = sum(mol_masses[i] * molecule_numbers[i] for i in range(n_molecule_types)) / avogadro
+            # Calculate density
+            density = total_mass_g / box_volume_cm3
+            mode_desc = f"Box size {box_size} Å, {sum(molecule_numbers)} total molecules, calculated density {density:.3f} g/cm³"
+            
+        # Mode 3: density and molecule_numbers provided, calculate box_size
+        elif density is not None and molecule_numbers is not None and box_size is None:
+            # Calculate total mass in g
+            total_mass_g = sum(mol_masses[i] * molecule_numbers[i] for i in range(n_molecule_types)) / avogadro
+            # Calculate volume in cm³
+            volume_cm3 = total_mass_g / density
+            # Calculate box length in Å (assume cubic box)
+            box_length = (volume_cm3 ** (1/3)) * 1e8  # Convert cm to Å
+            box_size = [box_length, box_length, box_length]
+            mode_desc = f"Density {density} g/cm³, {sum(molecule_numbers)} total molecules, calculated cubic box {box_length:.2f} Å"
+            
+        else:
+            raise ValueError(f"Invalid combination of parameters provided. Accepted combinations are: box_size, density, molecule_numbers. Please provide exactly two of the three parameters.")
+        
+        # Create the box
+        box = Atoms(cell=box_size, pbc=True)
+        
+        # Prepare all molecules to be added
+        all_molecules = []
+        for i, (mol, n_mol) in enumerate(zip(molecules, molecule_numbers)):
+            # Get molecule's center of mass for proper positioning
+            mol_com = mol.get_center_of_mass()
+            mol_positions = mol.get_positions()
+            # Center molecule on origin for easier placement
+            mol_positions_centered = mol_positions - mol_com
+            
+            # Add n_mol copies of this molecule type
+            for _ in range(n_mol):
+                mol_copy = mol.copy()
+                mol_copy.set_positions(mol_positions_centered)  # Will be positioned later
+                all_molecules.append(mol_copy)
+        
+        total_molecules = len(all_molecules)
+        
+        # Add molecules to the box
+        added_molecules = 0
+        max_attempts = total_molecules * 100  # Limit attempts to avoid infinite loop
+        attempt = 0
+        
+        # Get molecule's center of mass for proper positioning
+        # This is moved up and handled per molecule type above
+        
+        while added_molecules < total_molecules and attempt < max_attempts:
+            attempt += 1
+            
+            # Generate random position in box
+            pos = np.array([
+                np.random.random() * box_size[0],
+                np.random.random() * box_size[1],
+                np.random.random() * box_size[2]
+            ])
+            
+            # Get the next molecule to place
+            mol_to_add = all_molecules[added_molecules]
+            
+            # Position the molecule at this location
+            mol_positions = mol_to_add.get_positions()
+            mol_to_add.set_positions(mol_positions + pos)
+            
+            # Check for overlaps with existing atoms
+            if added_molecules == 0:
+                # First molecule, just add it
+                box.extend(mol_to_add)
+                added_molecules += 1
+                continue
+            
+            # For subsequent molecules, check for overlaps
+            overlap = False
+            new_positions = mol_to_add.get_positions()
+            
+            # Check against all existing atoms in the box
+            for existing_atom in box:
+                for new_atom in mol_to_add:
+                    # Calculate distance considering periodic boundaries
+                    dr = new_atom.position - existing_atom.position
+                    # Apply minimum image convention
+                    dr[0] = dr[0] - box_size[0] * np.round(dr[0] / box_size[0])
+                    dr[1] = dr[1] - box_size[1] * np.round(dr[1] / box_size[1])
+                    dr[2] = dr[2] - box_size[2] * np.round(dr[2] / box_size[2])
+                    distance = np.linalg.norm(dr)
+                    
+                    # If atoms are too close (less than 1.0 Å), consider it overlapping
+                    if distance < 1.5:
+                        overlap = True
+                        break
+                if overlap:
+                    break
+            
+            # If no overlap, add the molecule
+            if not overlap:
+                box.extend(mol_to_add)
+                added_molecules += 1
+        
+        if added_molecules < total_molecules:
+            logging.warning(f'Only {added_molecules} out of {total_molecules} molecules were placed after {attempt} attempts')
+            warning_msg = f'Warning: Only {added_molecules} out of {total_molecules} molecules were placed after {attempt} attempts. '
+        else:
+            warning_msg = ''
+        
+        # Write the final structure
+        write(output_file, box)
+        
+        logging.info(f'Amorphous structure saved to: {output_file}')
+        return {
+            'structure_paths': Path(output_file),
+            'message': f'{warning_msg}Amorphous structure with {added_molecules} molecules generated successfully. {mode_desc}'
+        }
+    except Exception as e:
+        logging.error(f'Amorphous structure generation failed: {str(e)}', exc_info=True)
+        return {
+            'structure_paths': None,
+            'message': f'Amorphous structure generation failed: {str(e)}'
         }
 
 
