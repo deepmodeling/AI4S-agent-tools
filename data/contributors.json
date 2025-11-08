@@ -49,23 +49,23 @@
       ]
     },
     {
+      "author": "@A-LOST-WAPITI",
+      "collections": [
+        "StructureGenerateServer"
+      ],
+      "collections_count": 1,
+      "tools_count": 14,
+      "categories": [
+        "materials"
+      ]
+    },
+    {
       "author": "@ahxbcn",
       "collections": [
         "ABACUS"
       ],
       "collections_count": 1,
       "tools_count": 13,
-      "categories": [
-        "materials"
-      ]
-    },
-    {
-      "author": "@A-LOST-WAPITI",
-      "collections": [
-        "StructureGenerateServer"
-      ],
-      "collections_count": 1,
-      "tools_count": 11,
       "categories": [
         "materials"
       ]
@@ -221,5 +221,5 @@
   ],
   "total_contributors": 19,
   "total_collections": 26,
-  "total_tools": 127
+  "total_tools": 130
 }

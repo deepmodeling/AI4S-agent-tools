@@ -511,6 +511,9 @@
         "build_surface_slab",
         "generate_calypso_structures",
         "generate_crystalformer_structures",
+        "get_structure_info",
+        "make_amorphous_structure",
+        "make_doped_structure",
         "make_supercell_structure"
       ],
       "path": "servers/structure_generate",
