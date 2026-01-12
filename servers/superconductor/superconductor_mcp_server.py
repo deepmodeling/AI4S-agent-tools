@@ -19,35 +19,11 @@ import shutil
 
 from pymatgen.core import Composition
 
-import argparse
-
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
-def parse_args():
-    """Parse command line arguments for MCP server."""
-    parser = argparse.ArgumentParser(description="DPA Calculator MCP Server")
-    parser.add_argument('--port', type=int, default=50001, help='Server port (default: 50001)')
-    parser.add_argument('--host', default='0.0.0.0', help='Server host (default: 0.0.0.0)')
-    parser.add_argument('--log-level', default='INFO',
-                       choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-                       help='Logging level (default: INFO)')
-    try:
-        args = parser.parse_args()
-    except SystemExit:
-        class Args:
-            port = 50001
-            host = '0.0.0.0'
-            log_level = 'INFO'
-        args = Args()
-    return args
-
-args = parse_args()
-
-
 
 # Initialize MCP server
 mcp = CalculationMCPServer(
@@ -56,16 +32,19 @@ mcp = CalculationMCPServer(
     port=50002
 )
 
-
-def run_optimization(
-    structures: List[Path],
+class RunOptimizationResult(TypedDict):
+      optimized_poscar_paths: Path
+      message: str
+@mcp.tool()
+def run_superconductor_optimization(
+    structure_path: Path,
     ambient: bool
-) -> List[Path]:
+) -> RunOptimizationResult:
     """
       Optimize structures with DP model at ambient or high pressure condition.
 
       Args:
-        - structure (Path): Path to access structures need to be optimized
+        - structure_path (Path): Path to access structures need to be optimized
         - ambient (bool): Wether consider ambient condition
       Return:
         - optimized_structure_path (Path): Path to access optimized structures
@@ -79,6 +58,8 @@ def run_optimization(
        pressure = 200
 
     nsteps = 2000
+    
+    structures = list(structure_path.rglob("POSCAR*"))
 
     try:
        # Build command: use the actual path to opt_py, not the literal string "opt_py"
@@ -123,11 +104,14 @@ def run_optimization(
           for frame in system:
               system.to_vasp_poscar(optimized_dir / f'POSCAR_{count}')
               count+=1
-       optimized_structures = list(optimized_dir.rglob("POSCAR*"))
+       #optimized_structures = list(optimized_dir.rglob("POSCAR*"))
     except Exception as e:
        print("Collect POSCAR failed!")
 
-    return optimized_structures
+    return{
+       "optimized_poscar_paths": optimized_dir,
+       "message": "Geometry Optimization successfully"
+    }
 
 ### Tool generate structures with Calypso 
 class GenerateCalypsoStructureResult(TypedDict):
@@ -184,7 +168,7 @@ ELEMENT_PROPS = {
 
 
 @mcp.tool()
-def generate_calypso_structure(
+def generate_calypso_superconductor_structure(
        species: List[str], 
        n_tot: int
     )->GenerateCalypsoStructureResult:
@@ -364,10 +348,11 @@ class GenerateCryFormerStructureResult(TypedDict):
       message: str
 
 @mcp.tool()
-def generate_crystalformer_structures(
+def generate_crystalformer_superconductor_structures(
     space_group: int,
     ambient: bool,
-    target_values: List[float],
+    target_values: float,
+    comparison_ops:Optional[str],
     n_tot: int
 )->GenerateCryFormerStructureResult:
    """
@@ -375,58 +360,66 @@ def generate_crystalformer_structures(
    If ambient condition, please using /opt/agents/superconductor/models/ambient_pressure/model.ckpt-1000000.pt model predicts critical temperature.
    If high pressure condition, please using /opt/agents/superconductor/models/high_pressure/model.ckpt-100000.pt model predicts critical temperature.
    If user did not mention space group number requirement, pressure condition, please reminder user to give instruction. 
+   If user did not mentioned the comparison operator comparison_ops, please remind the user to give a value
 
    Args:
      space_group (int): Target space group number for generated structures.
      ambient (bool): Wether consider ambient condition superconductor.
-     target_values (List[float]): Target critical temperature
+     target_values (float): Target critical temperature.
+     comparison_ops (Optional[str]): One per target_prop; each must be one of "greater", "less", "equal", "minimize". If none, please use greater for all target_props.
      n_tot (int): Total number of structures generated
    Returns:
      poscar_paths (Path): Path to generated POSCAR.
      message (str): Message about calculation results.  
    """
    try:
-      if ambient: 
-         model  = Path("/opt/agents/superconductor/models/ambient_pressure/model.ckpt-1000000.pt")
-      else:
-         model  = Path("/opt/agents/superconductor/models/high_pressure/model.ckpt-100000.pt")
-      
-      try:
-         
-         #activate uv
-         workdir = Path("/opt/agents/crystalformer_gpu")
-         outputs = workdir/ "outputs"
-         
-         
-         alpha = [0.5]
-         mc_steps = 2000
-         cmd = [
-             "uv", "run", "python",
-             "crystalformer_mcp.py",
-             "--cond_model_path", str(model),
-             "--target", str(target_values),
-             "--alpha", str(alpha),
-             "--spacegroup", str(space_group),
-             "--mc_steps", str(mc_steps),
-             "--num_samples", str(n_tot),
-             "--output_path", str(outputs)
-         ]
-         subprocess.run(cmd, cwd=workdir, check=True)
-         
-         output_path = Path("outputs")
-         if output_path.exists():
-            shutil.rmtree(output_path)
-         shutil.copytree(outputs, output_path)
-         return {
-           "poscar_paths": output_path,
-           "message": "CrystalFormer structure generation successfully!"
-         }
-      except Exception as e:
+     if ambient: 
+         target_prop = "ambient_pressure"
+     else:
+         target_prop = "high_pressure"
+     
+     try:
+        
+        #activate uv
+        workdir = Path("/opt/agents/mcp_tool")
+        outputs = workdir/ "target"
+        
+        
+        mc_steps = 2000
+        upper=min(space_group, n_tot)
+        random_spacegroup_num = random.randint(1,upper)
+     
+        cmd = [
+            "uv", "run", "python",
+            "mcp_tool.py",
+            "--mode", 'single',
+            "--cond_model_type", target_prop,
+            "--target", str(target_values),
+            "--target_type", str(comparison_ops),
+            "--alpha", '10',
+            "--spacegroup", str(space_group),
+            "--random_spacegroup_num", "1", #str(random_spacegroup_num),
+            "--init_sample_num", str(n_tot),
+            "--mc_steps", str(mc_steps),
+        ]
+        
+        print(f"cmd = {cmd}")
+     
+        subprocess.run(cmd, cwd=workdir, check=True)
+        
+        output_path = Path("outputs")
+        if output_path.exists():
+           shutil.rmtree(output_path)
+        shutil.copytree(outputs, output_path)
         return {
-          "poscar_paths": None,
-          "message": "CrystalFormer Execution failed!"
+          "poscar_paths": output_path,
+          "message": "CrystalFormer structure generation successfully!"
         }
-   
+     except Exception as e:
+       return {
+         "poscar_paths": None,
+         "message": "CrystalFormer Generation failed!"
+       }
    except Exception as e:
      return {
        "poscar_paths": None,
@@ -448,7 +441,7 @@ class CalculateEntalpyResult(TypedDict):
       message: str
 #======================Tool to calculate structure enthalpy======================
 @mcp.tool()
-def calculate_enthalpy(
+def calculate_superconductor_enthalpy(
     structure_path: Path,
     threshold: float,
     ambient: bool
@@ -566,9 +559,11 @@ def calculate_enthalpy(
     enthalpy_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-       poscar_files = list(structure_path.rglob("POSCAR*"))
+       #poscar_files = list(structure_path.rglob("POSCAR*"))
        try:
-          optimized_structures = run_optimization(list(poscar_files), ambient)
+          results = run_superconductor_optimization(structure_path,ambient)
+          optimized_structure_path = results["optimized_poscar_paths"]
+          optimized_structures = list(optimized_structure_path.rglob("POSCAR*"))
        except Exception as e:
           return{
             "enthalpy_file": [],
@@ -781,7 +776,7 @@ def calculate_enthalpy(
          "message": "Enthalpy prediction failed!"
        }
 
-####    Tool to predict superconductor critical temperature ####
+
 class SuperconductorCriticalTemperatures(TypedDict):
       Tc: float
       path:                 str
@@ -795,11 +790,128 @@ class SuperconductorTcResult(TypedDict):
 @mcp.tool()
 def predict_superconductor_Tc(
     structure_path: Path,
+    ambient: bool
+) -> SuperconductorTcResult:
+    """
+    Predict material critical temperature at different pressure conditions with pretrained dpa model.
+    If at ambient condition, using /opt/agents/superconductor/models/ambient_pressure/model.ckpt-1000000.pt model predicts critical temperature.
+    If at high pressure condition, using /opt/agents/superconductor/models/high_pressure/model.ckpt-100000.pt model predicts critical temperature.
+
+    If user did not mention pressure condition, please remind user to choose ambient or high pressure condition.
+
+
+    Args:
+        structure_path (Path): Path to either structure file (POSCAR/CIF) 
+        ambient (bool): Wether consider ambient condition
+
+    Returns:
+        SuperconductorTcResult: Dictionary with keys:
+            - results_file (Path): Path to access result files critical_temperature.csv, which saved in outputs/superconductor_critical_temperature.csv
+            - message (str): Message about calculations results.
+    """
+    try:
+
+
+        structure_path = Path(structure_path)
+        if not structure_path.exists():
+            return {
+                "results_file": {},
+                "message": f"Structure path not found: {structure_path}"
+            }
+
+        #Determine used model for critical temperature prediction
+        if ambient:
+           used_model = Path("/opt/agents/superconductor/models/ambient_pressure/model.ckpt-1000000.pt")
+        else:
+           used_model = Path("/opt/agents/superconductor/models/high_pressure/model.ckpt-100000.pt")
+
+        if not used_model.exists():
+            return {
+                "results_file": {},
+                "message": f"{used_model} not exists!"
+            }
+        #find all structures
+        results = run_superconductor_optimization(structure_path, ambient)
+        optimized_structure_path = results["optimized_poscar_paths"]
+        optimized_structures = list(optimized_structure_path.rglob("POSCAR*"))
+
+        superconductor_data: SuperconductorData ={}
+        for structure in optimized_structures:
+            #Convert structure into ase format
+            try: 
+
+               atom = io.read(str(structure))
+               formula = atom.get_chemical_formula()
+              
+               #information for critical temperature predictions
+               coords = atom.get_positions()
+               cells = atom.get_cell()
+               atom_numbers = atom.get_atomic_numbers()               
+               atom_types = [x - 1 for x in atom_numbers]
+
+            except Exception as e:
+               return{
+                 "results_file": {},
+                 "message": f"Structure {structure} read failed!"
+               }
+
+            try:
+               if ambient:
+                  dp_property = DeepProperty(model_file=str(used_model))
+               else:
+                  dp_property = DeepProperty(model_file=str(used_model), head="tc")
+               result = dp_property.eval(coords=coords, cells=cells, atom_types=atom_types)[0][0][0]
+            except Exception as e:
+               return{
+                 "results_file": {},
+                 "message": f"Structure {structure} critical temperature prediction failed!"
+               }
+
+            superconductor_Tc: SuperconductorCriticalTemperatures = {}
+
+            try:
+               superconductor_Tc["Tc"] = result
+               superconductor_Tc["path"] = str(structure)
+            except Exception as e:
+               return{
+                 "results_file": {},
+                 "message": f"Structure {structure}  superconductor_Tc save failed!"
+               }
+            
+            superconductor_data[formula] = superconductor_Tc 
+
+        output_dir = Path("outputs")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        results_file = output_dir / "critical_temperature.csv"
+        with open(results_file, "w", newline="") as f:
+             writer = csv.writer(f)
+             writer.writerow(["formula", "Tc", "path"])  # header
+             for formula, props in superconductor_data.items():
+                 fname = Path(structure).name 
+                 writer.writerow([formula, props["Tc"], props["path"]])
+
+        return {
+            "results_file": results_file,
+            "message": f"Material critical temperature predictions are saved in {results_file}"
+        }
+
+
+    except Exception as e:
+        return {
+            "Tc_List": -1.0,
+            "message": f"Unexpected error: {str(e)}"
+        }
+
+####    Tool to predict superconductor critical temperature ####
+
+@mcp.tool()
+def screen_superconductor(
+    structure_path: Path,
     above_hull_file: Path,
     ambient: bool
 ) -> SuperconductorTcResult:
     """
-    Predict superconductor critical temperature at different pressure conditions with pretrained dpa model.
+    Screen promising supercondutor from above hull structures at ambient or high pressure condition
     If at ambient condition, using /opt/agents/superconductor/models/ambient_pressure/model.ckpt-1000000.pt model predicts critical temperature.
     If at high pressure condition, using /opt/agents/superconductor/models/high_pressure/model.ckpt-100000.pt model predicts critical temperature.
 
@@ -813,7 +925,7 @@ def predict_superconductor_Tc(
 
     Returns:
         SuperconductorTcResult: Dictionary with keys:
-            - results_file (Path): Path to access result files superconductor_critical_temperature.csv, which saved in outputs/superconductor_critical_temperature.csv
+            - results_file (Path): Path to access result files superconductor.csv, which saved in outputs/superconductor_critical_temperature.csv
             - message (str): Message about calculations results.
     """
     try:
@@ -848,10 +960,12 @@ def predict_superconductor_Tc(
                     # normalize to basename so lookups by Path(...).name match
                     key = Path(row["structure"]).name                    # ← normalize
                     above_hull_map[key] = float(row["energy"])
+                    print(f"key = {key}")
  
         #find all structures
-        structures = sorted(structure_path.rglob("POSCAR*")) + sorted(structure_path.rglob("*.cif"))
-        optimized_structures = run_optimization(list(structures), ambient)
+
+        structures = list(structure_path.rglob("POSCAR*"))
+
         superconductor_data: SuperconductorData ={}
         for structure in structures:
             #Convert structure into ase format
@@ -899,12 +1013,12 @@ def predict_superconductor_Tc(
 
         output_dir = Path("outputs")
         output_dir.mkdir(parents=True, exist_ok=True)
-        results_file = output_dir / "superconductor_critical_temperature.csv"
+        results_file = output_dir / "superconductor.csv"
         with open(results_file, "w", newline="") as f:
              writer = csv.writer(f)
              writer.writerow(["formula", "Tc", "path", "e_above_hull"])  # header
              for formula, props in superconductor_data.items():
-                 fname = Path(structure).name 
+                 fname = Path(props["path"]).name 
                  eh = above_hull_map.get(fname, "")
                  writer.writerow([formula, props["Tc"], props["path"], eh])
 
