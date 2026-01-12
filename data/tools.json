@@ -529,18 +529,50 @@
       "description": "Superconductor critical temperature prediction",
       "author": "@liuyuxiang92",
       "category": "materials",
+      "path": "servers/convexhull",
+      "transport": [
+        "sse",
+        "stdio"
+      ],
+      "start_command": "# SSE mode\ncd servers/convexhull && python server.py --port <PORT>\n# stdio mode\ncd servers/convexhull && MCP_TRANSPORT=stdio python server.py",
+      "install_command": "cd servers/convexhull && uv sync",
+      "tools": [
+        "build_convex_hull"
+      ]
+    },
+    {
+      "name": "SuperconductorServer",
+      "description": "Superconductor critical temperature prediction",
+      "author": "@liuyuxiang92",
+      "category": "materials",
+      "path": "servers/finetune_dpa",
+      "transport": [
+        "sse",
+        "stdio"
+      ],
+      "start_command": "# SSE mode\ncd servers/finetune_dpa && python server.py --port <PORT>\n# stdio mode\ncd servers/finetune_dpa && MCP_TRANSPORT=stdio python server.py",
+      "install_command": "cd servers/finetune_dpa && uv sync",
+      "tools": [
+        "finetune_dpa_model"
+      ]
+    },
+    {
+      "name": "SuperconductorServer",
+      "description": "Superconductor critical temperature prediction",
+      "author": "@liuyuxiang92",
+      "category": "materials",
       "path": "servers/superconductor",
       "transport": [
         "sse",
         "stdio"
       ],
-      "start_command": "See README for details",
-      "install_command": "Contact @liuyuxiang92 for access",
+      "start_command": "# SSE mode\ncd servers/superconductor && python server.py --port <PORT>\n# stdio mode\ncd servers/superconductor && MCP_TRANSPORT=stdio python server.py",
+      "install_command": "cd servers/superconductor && uv sync",
       "tools": [
-        "calculate_enthalpy",
-        "generate_calypso_structure",
-        "generate_crystalformer_structures",
-        "predict_superconductor_Tc"
+        "calculate_superconductor_enthalpy",
+        "predict_superconductor_Tc",
+        "run_superconductor_optimization",
+        "screen_superconductor"
       ]
     },
     {
@@ -556,10 +588,9 @@
       "start_command": "# SSE mode\ncd servers/thermoelectric && python server.py --port <PORT>\n# stdio mode\ncd servers/thermoelectric && MCP_TRANSPORT=stdio python server.py",
       "install_command": "cd servers/thermoelectric && uv sync",
       "tools": [
-        "calculate_enthalpy",
-        "generate_calypso_structures",
-        "generate_crystalformer_structures",
+        "calculate_thermoele_enthalpy",
         "predict_thermoelectric_properties",
+        "run_pressure_optimization",
         "screen_thermoelectric_candidate"
       ]
     },

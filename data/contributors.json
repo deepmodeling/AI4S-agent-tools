@@ -74,10 +74,12 @@
       "author": "@liuyuxiang92",
       "collections": [
         "SuperconductorServer",
+        "SuperconductorServer",
+        "SuperconductorServer",
         "ThermoelectricMaterialsServer"
       ],
-      "collections_count": 2,
-      "tools_count": 9,
+      "collections_count": 4,
+      "tools_count": 10,
       "categories": [
         "materials"
       ]
@@ -220,6 +222,6 @@
     }
   ],
   "total_contributors": 19,
-  "total_collections": 26,
-  "total_tools": 130
+  "total_collections": 28,
+  "total_tools": 131
 }

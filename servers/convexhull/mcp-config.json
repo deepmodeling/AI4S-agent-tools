@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "SuperconductorServer": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/convexhull",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "SuperconductorServer",
+        "description": "Superconductor critical temperature prediction",
+        "author": "@liuyuxiang92",
+        "category": "materials",
+        "transport": [
+          "sse",
+          "stdio"
+        ]
+      }
+    }
+  }
+}
