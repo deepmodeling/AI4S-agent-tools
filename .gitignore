@@ -100,3 +100,4 @@ local_config/
 # Claude configuration (local only)
 CLAUDE.md
 .venv/
+.env

@@ -1,0 +1,35 @@
+# Welcome message to be displayed at the start
+welcome_message: |
+  👋 Welcome to the Biological Data Assistant!
+
+  I can help you query information about:
+  - Protein structures and assemblies from PDB
+  - Chemical compounds and drug data
+  - Biological annotations from UniProt and DrugBank
+
+# Chat interface settings
+chat:
+  # Default temperature for the model
+  temperature: 0.7
+
+  # Enable/disable message history
+  history: true
+
+# UI customization
+ui:
+  # Name displayed in the interface
+  name: Bio-Agents Assistant
+
+  # Description shown in the interface
+  description: Query biological and chemical data using natural language
+
+  # Theme and appearance
+  theme: light
+
+  # Logo/avatar settings
+  avatar: assets/dna-solid.svg
+
+# API settings
+server:
+  # Enable/disable API authentication
+  api_auth: false

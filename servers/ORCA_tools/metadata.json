@@ -1,0 +1,7 @@
+{
+    "name": "orca_tools",
+    "description": "运行 ORCA 计算。",
+    "author": "marvcks",
+    "category": "chemistry",
+    "tools": ["run_orca_calculation", "retrieve_content_from_orca_output"]
+}

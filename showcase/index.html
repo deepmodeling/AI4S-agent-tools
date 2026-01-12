@@ -560,6 +560,163 @@
             font-size: 0.9rem;
         }
         
+        .contributors-section {
+            margin-top: 4rem;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+            border-radius: 24px;
+        }
+        
+        .contributors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .contributor-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        
+        a.contributor-card {
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .contributor-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .contributor-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+            border-color: var(--primary);
+        }
+        
+        .contributor-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .contributor-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .contributor-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .contributor-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .contributor-info {
+            flex-grow: 1;
+            min-width: 0;
+        }
+        
+        .contributor-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .contributor-categories {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .contributor-category {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            background: var(--light);
+            border-radius: 12px;
+            color: var(--text-light);
+        }
+        
+        .contributor-stats {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+        
+        .contributor-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .contributor-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .contributor-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .contributor-rank {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+        }
+        
         footer {
             padding: 3rem 0;
             text-align: center;
@@ -734,15 +891,15 @@
                 </div>
                 <div class="stats">
                     <div class="stat">
-                        <div class="stat-value">7</div>
+                        <div class="stat-value">26</div>
+                        <div class="stat-label">Collections</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">130</div>
                         <div class="stat-label">Tools</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">35</div>
-                        <div class="stat-label">Functions</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value">7</div>
+                        <div class="stat-value">19</div>
                         <div class="stat-label">Contributors</div>
                     </div>
                 </div>
@@ -761,11 +918,8 @@
                     <div class="code-snippet"># Navigate to tool directory
 cd servers/&lt;toolname&gt;
 
-# Install dependencies
-uv sync
-
 # Run the server
-python server.py --port &lt;port&gt;</div>
+uv run python server.py --port &lt;port&gt;</div>
                 </div>
                 <div class="quick-start-card">
                     <h3>🛠️ Add Your Tool</h3>
@@ -777,9 +931,8 @@ cp -r servers/_example servers/my_tool
 cd servers/my_tool
 # ... edit server.py ...
 
-# Install and run
-uv sync
-python server.py --port &lt;port&gt;</div>
+# Run the server
+uv run python server.py --port &lt;port&gt;</div>
                 </div>
             </div>
         </div>
@@ -827,8 +980,12 @@ python server.py --port &lt;port&gt;</div>
             </div>
             <div class="categories">
                 <span class="category-tag active" data-category="all">All</span>
+                <span class="category-tag" data-category="biology">🧬 Biology</span>
                 <span class="category-tag" data-category="chemistry">⚗️ Chemistry</span>
+                <span class="category-tag" data-category="data">📊 Data & Analysis</span>
+                <span class="category-tag" data-category="machine-learning">🤖 Machine Learning</span>
                 <span class="category-tag" data-category="materials">💎 Materials Science</span>
+                <span class="category-tag" data-category="physics">⚛️ Physics</span>
                 <span class="category-tag" data-category="research">📚 Research Tools</span>
             </div>
         </div>
@@ -836,117 +993,455 @@ python server.py --port &lt;port&gt;</div>
     
     <div class="tools-grid">
         <div class="container">
-            <div class="category-section" data-category="materials">
+            <div class="category-section" data-category="biology">
                 <div class="category-header">
-                    <span class="category-icon">💎</span>
-                    <h2 class="category-title">Materials Science</h2>
+                    <h2 class="category-title">🧬 Biology</h2>
                 </div>
                 <div class="tools-row">
-                    <div class="tool-card" onclick="showToolDetails('ABACUS')">
+                    <div class="tool-card" onclick="showToolDetails('bio-agents-mcp')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">ABACUS</div>
-                                <div class="tool-author">@ahxbcn</div>
+                                <div class="tool-name">
+                                    bio-agents-mcp
+                                </div>
+                                <div class="tool-author">@dogeplusplus</div>
                             </div>
                         </div>
-                        <p class="tool-description">First principles calculations bridge for AI models - ABACUS computational jobs</p>
+                        <p class="tool-description">A collection of microservices for natural language interaction with biological databases, including Protein Data Bank (PDB) and ChEMBL APIs</p>
                         <div class="tool-features">
-                            <span class="tool-feature">run_abacus_onejob</span>
-                            <span class="tool-feature">generate_bulk_structure</span>
-                            <span class="tool-feature">abacus_collect_data</span>
-                            <span class="tool-count">+10 more</span>
+                            <span class="tool-feature">aggregation_group_provenance</span>
+                            <span class="tool-feature">branched_entity</span>
+                            <span class="tool-feature">branched_entity_instance</span>
+                            <span class="tool-count">+14 more</span>
                         </div>
                     </div>
-                    <div class="tool-card" onclick="showToolDetails('DPACalculatorServer')">
+                    <div class="tool-card" onclick="showToolDetails('dna_sequence_analyzer')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">DPACalculatorServer</div>
-                                <div class="tool-author">@SchrodingersCattt</div>
+                                <div class="tool-name">
+                                    dna_sequence_analyzer
+                                </div>
+                                <div class="tool-author">@lhappy</div>
                             </div>
                         </div>
-                        <p class="tool-description">Deep Potential Agent for atomistic simulation</p>
+                        <p class="tool-description">DNA sequence analysis tool with length calculation, base counting, GC content, reverse complement, and translation using the standard genetic code. Option to stop at stop codons.</p>
                         <div class="tool-features">
-                            <span class="tool-feature">calculate_phonon</span>
-                            <span class="tool-feature">build_surface_adsorbate</span>
-                            <span class="tool-feature">optimize_crystal_structure</span>
-                            <span class="tool-count">+7 more</span>
-                        </div>
-                    </div>
-                    <div class="tool-card" onclick="showToolDetails('ThermoelectricMaterialsServer')">
-                        <div class="tool-header">
-                            <div>
-                                <div class="tool-name">ThermoelectricMaterialsServer</div>
-                                <div class="tool-author">@liuyuxiang92</div>
-                            </div>
-                        </div>
-                        <p class="tool-description">Thermoelectric materials screening with CALYPSO</p>
-                        <div class="tool-features">
-                            <span class="tool-feature">screen_thermoelectric_candidate</span>
-                            <span class="tool-feature">generate_calypso_structure</span>
-                            <span class="tool-feature">calculate_enthalpy</span>
-                            <span class="tool-count">+1 more</span>
-                        </div>
-                    </div>
-                    <div class="tool-card" onclick="showToolDetails('deepmd_docs_rag')">
-                        <div class="tool-header">
-                            <div>
-                                <div class="tool-name">deepmd_docs_rag</div>
-                                <div class="tool-author">@felix5572</div>
-                            </div>
-                        </div>
-                        <p class="tool-description">DeepMD documentation RAG server</p>
-                        <div class="tool-features">
-                            <span class="tool-feature">upload_single_file_to_deepmd_knowledge_base</span>
+                            <span class="tool-feature">analyze_dna_sequence</span>
+                            <span class="tool-feature">reverse_complement</span>
+                            <span class="tool-feature">translate_dna</span>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="category-section" data-category="chemistry">
                 <div class="category-header">
-                    <span class="category-icon">⚗️</span>
-                    <h2 class="category-title">Chemistry</h2>
+                    <h2 class="category-title">⚗️ Chemistry</h2>
                 </div>
                 <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('ASKCOS')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    ASKCOS
+                                </div>
+                                <div class="tool-author">@jiaodu1307</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Computer-aided synthesis planning tool for retrosynthesis analysis</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">reaction_prediction</span>
+                            <span class="tool-feature">retrosynthesis_planning</span>
+                            <span class="tool-feature">single_step_retrosynthesis</span>
+                            <span class="tool-count">+1 more</span>
+                        </div>
+                    </div>
                     <div class="tool-card" onclick="showToolDetails('CatalysisMCP')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">CatalysisMCP</div>
+                                <div class="tool-name">
+                                    CatalysisMCP
+                                </div>
                                 <div class="tool-author">@Rasic2</div>
                             </div>
                         </div>
                         <p class="tool-description">Catalysis reaction calculations based on ADSEC workflow</p>
                         <div class="tool-features">
+                            <span class="tool-feature">cal_ads_energy</span>
                             <span class="tool-feature">cal_surface_energy</span>
                             <span class="tool-feature">cal_vacancy_formation_energy</span>
-                            <span class="tool-feature">cal_ads_energy</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('NMRglue Toolkit')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    NMRglue Toolkit
+                                </div>
+                                <div class="tool-author">@jiaodu1307</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">NMR data processing and analysis toolkit using nmrglue library for reading, processing, and visualizing NMR spectroscopy data</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">apply_apodization</span>
+                            <span class="tool-feature">baseline_correction</span>
+                            <span class="tool-feature">get_spectrum_info</span>
+                            <span class="tool-count">+5 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('PyMOL')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    PyMOL
+                                </div>
+                                <div class="tool-author">@vrtejus</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">PyMOL molecular visualization and analysis tool integration</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">parse_and_execute</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('RDKit Toolkit')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    RDKit Toolkit
+                                </div>
+                                <div class="tool-author">@jiaodu1307</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Provides fundamental cheminformatics capabilities like molecule handling, descriptor calculation, and visualization.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">draw_molecule_svg</span>
+                            <span class="tool-feature">generate_fingerprint</span>
+                            <span class="tool-feature">get_basic_properties</span>
+                            <span class="tool-count">+2 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('orca_tools')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    orca_tools
+                                </div>
+                                <div class="tool-author">marvcks</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">运行 ORCA 计算。</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">retrieve_content_from_orca_output</span>
+                            <span class="tool-feature">run_orca_calculation</span>
                         </div>
                     </div>
                     <div class="tool-card" onclick="showToolDetails('pubchem')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">pubchem</div>
+                                <div class="tool-name">
+                                    pubchem
+                                </div>
                                 <div class="tool-author">@PhelanShao</div>
                             </div>
                         </div>
                         <p class="tool-description">PubChem compound data retrieval</p>
                         <div class="tool-features">
-                            <span class="tool-feature">get_pubchem_data</span>
                             <span class="tool-feature">download_structure</span>
+                            <span class="tool-feature">get_pubchem_data</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="category-section" data-category="data">
+                <div class="category-header">
+                    <h2 class="category-title">📊 Data & Analysis</h2>
+                </div>
+                <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('data_analysis')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    data_analysis
+                                </div>
+                                <div class="tool-author">@nlz25</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">A simplified tool for data analysis</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">analyze_csv_data</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('perovskite_literature_plot')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    perovskite_literature_plot
+                                </div>
+                                <div class="tool-author">Haoming Yan</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Plot perovskite literature data</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">plot_pce_vs_time_from_excel</span>
+                            <span class="tool-feature">plot_solar_cell_structure_vs_time</span>
+                            <span class="tool-feature">plot_structure_count_vs_time</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="category-section" data-category="machine-learning">
+                <div class="category-header">
+                    <h2 class="category-title">🤖 Machine Learning</h2>
+                </div>
+                <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('HEA_predictTool')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    HEA_predictTool
+                                </div>
+                                <div class="tool-author">@Junshang Zhang</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">predict the crystal structure of a type of high entropy alloy</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">HEA_predictor</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="category-section" data-category="materials">
+                <div class="category-header">
+                    <h2 class="category-title">💎 Materials Science</h2>
+                </div>
+                <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('ABACUS')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    ABACUS
+                                </div>
+                                <div class="tool-author">@ahxbcn</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">First principles calculations bridge for AI models - ABACUS computational jobs</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">abacus_badercharge_run</span>
+                            <span class="tool-feature">abacus_cal_band</span>
+                            <span class="tool-feature">abacus_cal_elastic</span>
+                            <span class="tool-count">+10 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('CompositionDART')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    CompositionDART
+                                </div>
+                                <div class="tool-author">@SchrodingersCattt</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Composition Optimization via DPA-based Adaptive Refinement Targeting (DART) for materials discovery.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">run_ga</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('DPACalculatorServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    DPACalculatorServer
+                                </div>
+                                <div class="tool-author">@SchrodingersCattt</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Deep Potential Agent for atomistic simulation</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">calculate_elastic_constants</span>
+                            <span class="tool-feature">calculate_phonon</span>
+                            <span class="tool-feature">optimize_structure</span>
+                            <span class="tool-count">+2 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('DPComboServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    DPComboServer
+                                </div>
+                                <div class="tool-author">@SchrodingersCattt</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">A Server for DP model training/finetuning/inference and dataset manipulation.</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">downsample_dataset</span>
+                            <span class="tool-feature">evaluate_error</span>
+                            <span class="tool-feature">filter_outliers</span>
+                            <span class="tool-count">+6 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('OptimadeServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    OptimadeServer
+                                </div>
+                                <div class="tool-author">@NingWang-art</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Optimade Server for materials database</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">fetch_structures_with_bandgap</span>
+                            <span class="tool-feature">fetch_structures_with_filter</span>
+                            <span class="tool-feature">fetch_structures_with_spg</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('StructureGenerateServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    StructureGenerateServer
+                                </div>
+                                <div class="tool-author">@A-LOST-WAPITI</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Generate structures with ASE, CALYPSO, and CrystalFormer</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">add_cell_for_molecules</span>
+                            <span class="tool-feature">build_bulk_structure_by_template</span>
+                            <span class="tool-feature">build_bulk_structure_by_wyckoff</span>
+                            <span class="tool-count">+11 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('SuperconductorServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    SuperconductorServer
+                                </div>
+                                <div class="tool-author">@liuyuxiang92</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Superconductor critical temperature prediction</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">calculate_enthalpy</span>
+                            <span class="tool-feature">generate_calypso_structure</span>
+                            <span class="tool-feature">generate_crystalformer_structures</span>
+                            <span class="tool-count">+1 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('ThermoelectricMaterialsServer')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    ThermoelectricMaterialsServer
+                                </div>
+                                <div class="tool-author">@liuyuxiang92</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Thermoelectric materials screening with CALYPSO</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">calculate_enthalpy</span>
+                            <span class="tool-feature">generate_calypso_structures</span>
+                            <span class="tool-feature">generate_crystalformer_structures</span>
+                            <span class="tool-count">+2 more</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('deepmd_docs_rag')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    deepmd_docs_rag
+                                </div>
+                                <div class="tool-author">@felix5572</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">DeepMD documentation RAG server</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">deepmd-docs-workflow</span>
+                            <span class="tool-feature">upload_single_file_to_deepmd_knowledge_base</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('matbench_property_prediction')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    matbench_property_prediction
+                                </div>
+                                <div class="tool-author">2043899742@qq.com</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Predict matbench properties using deep potential models</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">predict_matbench_properties</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="category-section" data-category="physics">
+                <div class="category-header">
+                    <h2 class="category-title">⚛️ Physics</h2>
+                </div>
+                <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('PYSR-Symbolic-Regression')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    PYSR-Symbolic-Regression
+                                </div>
+                                <div class="tool-author">@lhhhappy</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">PYSR-Symbolic-Regression</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">symbolic_regression</span>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="category-section" data-category="research">
                 <div class="category-header">
-                    <span class="category-icon">📚</span>
-                    <h2 class="category-title">Research Tools</h2>
+                    <h2 class="category-title">📚 Research Tools</h2>
                 </div>
                 <div class="tools-row">
+                    <div class="tool-card" onclick="showToolDetails('HEA_extractTool')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    HEA_extractTool
+                                </div>
+                                <div class="tool-author">@Junshang Zhang</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">extract structural data of HEA materials from searched or given publications</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">HEA_data_extract</span>
+                            <span class="tool-feature">search_paper</span>
+                        </div>
+                    </div>
+                    <div class="tool-card" onclick="showToolDetails('Zotero')">
+                        <div class="tool-header">
+                            <div>
+                                <div class="tool-name">
+                                    Zotero
+                                </div>
+                                <div class="tool-author">@54yyyu</div>
+                            </div>
+                        </div>
+                        <p class="tool-description">Zotero literature management and semantic search integration for scientific research</p>
+                        <div class="tool-features">
+                            <span class="tool-feature">advanced_search</span>
+                            <span class="tool-feature">batch_update_tags</span>
+                            <span class="tool-feature">create_note</span>
+                            <span class="tool-count">+15 more</span>
+                        </div>
+                    </div>
                     <div class="tool-card" onclick="showToolDetails('paper_search')">
                         <div class="tool-header">
                             <div>
-                                <div class="tool-name">paper_search</div>
-                                <div class="tool-author">@Demo</div>
+                                <div class="tool-name">
+                                    paper_search
+                                </div>
+                                <div class="tool-author">@lhhhappy</div>
                             </div>
                         </div>
                         <p class="tool-description">Scientific literature search tool for arXiv papers</p>
@@ -986,6 +1481,161 @@ python server.py --port &lt;port&gt;</div>
                     <div class="community-desc">Passionate about collaboration</div>
                 </div>
             </div>
+
+            <div class="contributors-section">
+                <h3 class="section-title">Our Contributors</h3>
+                <p class="section-subtitle">The amazing developers building the future of scientific computing</p>
+                <div class="contributors-grid">
+                <a href="https://github.com/54yyyu" target="_blank" class="contributor-card">
+                    <div class="contributor-rank">🥇</div>
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/54yyyu.png?size=100" alt="@54yyyu" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">54</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@54yyyu</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">📚 research</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">1</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">18</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/jiaodu1307" target="_blank" class="contributor-card">
+                    <div class="contributor-rank">🥈</div>
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/jiaodu1307.png?size=100" alt="@jiaodu1307" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">JI</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@jiaodu1307</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">⚗️ chemistry</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">3</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">17</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/dogeplusplus" target="_blank" class="contributor-card">
+                    <div class="contributor-rank">🥉</div>
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/dogeplusplus.png?size=100" alt="@dogeplusplus" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">DO</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@dogeplusplus</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">🧬 biology</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">1</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">17</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/SchrodingersCattt" target="_blank" class="contributor-card">
+                    
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/SchrodingersCattt.png?size=100" alt="@SchrodingersCattt" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">SC</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@SchrodingersCattt</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">💎 materials</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">3</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">15</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/A-LOST-WAPITI" target="_blank" class="contributor-card">
+                    
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/A-LOST-WAPITI.png?size=100" alt="@A-LOST-WAPITI" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">A-</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@A-LOST-WAPITI</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">💎 materials</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">1</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">14</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <a href="https://github.com/ahxbcn" target="_blank" class="contributor-card">
+                    
+                    <div class="contributor-header">
+                        <div class="contributor-avatar">
+                            <img src="https://github.com/ahxbcn.png?size=100" alt="@ahxbcn" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:1.2rem;">AH</div>
+                        </div>
+                        <div class="contributor-info">
+                            <div class="contributor-name">@ahxbcn</div>
+                            <div class="contributor-categories">
+                                <span class="contributor-category">💎 materials</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contributor-stats">
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">1</div>
+                            <div class="contributor-stat-label">Collections</div>
+                        </div>
+                        <div class="contributor-stat">
+                            <div class="contributor-stat-value">13</div>
+                            <div class="contributor-stat-label">Tools</div>
+                        </div>
+                    </div>
+                </a>
+                <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-light); font-style: italic;">
+                    <p style="font-size: 1.1rem;">and 13 more contributors...</p>
+                    <a href="https://github.com/deepmodeling/AI4S-agent-tools/blob/main/data/CONTRIBUTORS.md" style="color: var(--primary); text-decoration: none; font-weight: 500;">View all contributors →</a>
+                </div>
+                </div>
+            </div>
         </div>
     </section>
     
@@ -997,7 +1647,7 @@ python server.py --port &lt;port&gt;</div>
                 <a href="https://github.com/deepmodeling">DeepModeling</a>
                 <a href="https://github.com/deepmodeling/AI4S-agent-tools/blob/main/LICENSE">License</a>
             </div>
-            <p>Generated on 2025-07-14 • Built with ❤️ by the <a href="https://github.com/deepmodeling" style="color: var(--primary);">DeepModeling</a> community</p>
+            <p>Generated on {datetime.now().strftime('%Y-%m-%d')} • Built with ❤️ by the <a href="https://github.com/deepmodeling" style="color: var(--primary);">DeepModeling</a> community</p>
         </div>
     </footer>
     
@@ -1011,177 +1661,71 @@ python server.py --port &lt;port&gt;</div>
     </div>
     
     <script>
-        const toolsData = [
-    {
-        "name": "ABACUS",
-        "description": "First principles calculations bridge for AI models - ABACUS computational jobs",
-        "author": "@ahxbcn",
-        "category": "materials",
-        "path": "servers/ABACUS-tools",
-        "start_command": "cd servers/ABACUS-tools && python server.py --port <PORT>",
-        "tools": [
-            "run_abacus_onejob",
-            "generate_bulk_structure",
-            "abacus_collect_data",
-            "abacus_cal_elastic",
-            "abacus_cal_band",
-            "abacus_badercharge_run",
-            "abacus_prepare_inputs_from_relax_results",
-            "abacus_modify_input",
-            "abacus_do_relax",
-            "abacus_dos_run",
-            "abacus_modify_stru",
-            "abacus_prepare",
-            "generate_deeptb_config"
-        ]
-    },
-    {
-        "name": "CatalysisMCP",
-        "description": "Catalysis reaction calculations based on ADSEC workflow",
-        "author": "@Rasic2",
-        "category": "chemistry",
-        "path": "servers/catalysis",
-        "start_command": "cd servers/catalysis && python server.py --port <PORT>",
-        "tools": [
-            "cal_surface_energy",
-            "cal_vacancy_formation_energy",
-            "cal_ads_energy"
-        ]
-    },
-    {
-        "name": "DPACalculatorServer",
-        "description": "Deep Potential Agent for atomistic simulation",
-        "author": "@SchrodingersCattt",
-        "category": "materials",
-        "path": "servers/DPACalculator",
-        "start_command": "cd servers/DPACalculator && python server.py --port <PORT>",
-        "tools": [
-            "calculate_phonon",
-            "build_surface_adsorbate",
-            "optimize_crystal_structure",
-            "calculate_elastic_constants",
-            "build_surface_interface",
-            "build_bulk_structure",
-            "run_neb",
-            "build_molecule_structure",
-            "build_surface_slab",
-            "run_molecular_dynamics"
-        ]
-    },
-    {
-        "name": "ThermoelectricMaterialsServer",
-        "description": "Thermoelectric materials screening with CALYPSO",
-        "author": "@liuyuxiang92",
-        "category": "materials",
-        "path": "servers/thermoelectric",
-        "start_command": "cd servers/thermoelectric && python server.py --port <PORT>",
-        "tools": [
-            "screen_thermoelectric_candidate",
-            "generate_calypso_structure",
-            "calculate_enthalpy",
-            "predict_thermoelectric_properties"
-        ]
-    },
-    {
-        "name": "deepmd_docs_rag",
-        "description": "DeepMD documentation RAG server",
-        "author": "@felix5572",
-        "category": "materials",
-        "path": "servers/deepmd_docs_rag",
-        "start_command": "cd servers/deepmd_docs_rag && python server.py --port <PORT>",
-        "tools": [
-            "upload_single_file_to_deepmd_knowledge_base"
-        ]
-    },
-    {
-        "name": "paper_search",
-        "description": "Scientific literature search tool for arXiv papers",
-        "author": "@Demo",
-        "category": "research",
-        "path": "servers/Paper_Search",
-        "start_command": "cd servers/Paper_Search && python server.py --port <PORT>",
-        "tools": [
-            "extract_info",
-            "search_papers"
-        ]
-    },
-    {
-        "name": "pubchem",
-        "description": "PubChem compound data retrieval",
-        "author": "@PhelanShao",
-        "category": "chemistry",
-        "path": "servers/pubchem",
-        "start_command": "cd servers/pubchem && python server.py --port <PORT>",
-        "tools": [
-            "get_pubchem_data",
-            "download_structure"
-        ]
-    }
-];
+        const toolsData = [{"name": "ABACUS", "description": "First principles calculations bridge for AI models - ABACUS computational jobs", "author": "@ahxbcn", "category": "materials", "path": "servers/ABACUS-tools", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/ABACUS-tools && python server.py --port <PORT>\n# stdio mode\ncd servers/ABACUS-tools && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/ABACUS-tools && uv sync", "tools": ["abacus_badercharge_run", "abacus_cal_band", "abacus_cal_elastic", "abacus_collect_data", "abacus_do_relax", "abacus_dos_run", "abacus_modify_input", "abacus_modify_stru", "abacus_prepare", "abacus_prepare_inputs_from_relax_results", "generate_bulk_structure", "generate_deeptb_config", "run_abacus_onejob"]}, {"name": "ASKCOS", "description": "Computer-aided synthesis planning tool for retrosynthesis analysis", "author": "@jiaodu1307", "category": "chemistry", "transport": ["sse", "stdio"], "tools": ["reaction_prediction", "retrosynthesis_planning", "single_step_retrosynthesis", "synthesis_route_analysis"], "path": "servers/ASKCOS", "start_command": "# SSE mode\ncd servers/ASKCOS && python server.py --port <PORT>\n# stdio mode\ncd servers/ASKCOS && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/ASKCOS && uv sync"}, {"name": "bio-agents-mcp", "description": "A collection of microservices for natural language interaction with biological databases, including Protein Data Bank (PDB) and ChEMBL APIs", "author": "@dogeplusplus", "category": "biology", "transport": ["sse", "stdio"], "tools": ["aggregation_group_provenance", "branched_entity", "branched_entity_instance", "chemical_component", "drugbank_annotations", "get_residue_chains", "non_polymer_entity", "non_polymer_entity_instance", "pairwise_polymeric_interface_description", "pdb_cluster_data_aggregation", "pdb_cluster_data_aggregation_method", "polymer_entity", "polymer_entity_instance", "pubmed_annotations", "structural_assembly_description", "structure", "uniprot_annotations"], "path": "servers/bio-agents-mcp", "start_command": "# SSE mode\ncd servers/bio-agents-mcp && python server.py --port <PORT>\n# stdio mode\ncd servers/bio-agents-mcp && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/bio-agents-mcp && uv sync"}, {"name": "CatalysisMCP", "description": "Catalysis reaction calculations based on ADSEC workflow", "author": "@Rasic2", "category": "chemistry", "path": "servers/catalysis", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/catalysis && python server.py --port <PORT>\n# stdio mode\ncd servers/catalysis && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/catalysis && uv sync", "tools": ["cal_ads_energy", "cal_surface_energy", "cal_vacancy_formation_energy"]}, {"name": "CompositionDART", "description": "Composition Optimization via DPA-based Adaptive Refinement Targeting (DART) for materials discovery.", "author": "@SchrodingersCattt", "category": "materials", "path": "servers/CompositionDART", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/CompositionDART && python server.py --port <PORT>\n# stdio mode\ncd servers/CompositionDART && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/CompositionDART && uv sync", "tools": ["run_ga"]}, {"name": "data_analysis", "description": "A simplified tool for data analysis", "author": "@nlz25", "category": "data", "tools": ["analyze_csv_data"], "path": "servers/data_analysis", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/data_analysis && python server.py --port <PORT>\n# stdio mode\ncd servers/data_analysis && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/data_analysis && uv sync"}, {"name": "deepmd_docs_rag", "description": "DeepMD documentation RAG server", "author": "@felix5572", "category": "materials", "tools": ["deepmd-docs-workflow", "upload_single_file_to_deepmd_knowledge_base"], "path": "servers/deepmd_docs_rag", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/deepmd_docs_rag && python server.py --port <PORT>\n# stdio mode\ncd servers/deepmd_docs_rag && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/deepmd_docs_rag && uv sync"}, {"name": "dna_sequence_analyzer", "description": "DNA sequence analysis tool with length calculation, base counting, GC content, reverse complement, and translation using the standard genetic code. Option to stop at stop codons.", "author": "@lhappy", "category": "biology", "transport": ["sse", "stdio"], "tools": ["analyze_dna_sequence", "reverse_complement", "translate_dna"], "path": "servers/dna_sequence_analyzer", "start_command": "# SSE mode\ncd servers/dna_sequence_analyzer && python server.py --port <PORT>\n# stdio mode\ncd servers/dna_sequence_analyzer && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/dna_sequence_analyzer && uv sync"}, {"name": "DPACalculatorServer", "description": "Deep Potential Agent for atomistic simulation", "author": "@SchrodingersCattt", "category": "materials", "path": "servers/DPACalculator", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/DPACalculator && python server.py --port <PORT>\n# stdio mode\ncd servers/DPACalculator && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/DPACalculator && uv sync", "tools": ["calculate_elastic_constants", "calculate_phonon", "optimize_structure", "run_molecular_dynamics", "run_neb"]}, {"name": "DPComboServer", "description": "A Server for DP model training/finetuning/inference and dataset manipulation.", "author": "@SchrodingersCattt", "category": "materials", "path": "servers/DPCombo", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/DPCombo && python server.py --port <PORT>\n# stdio mode\ncd servers/DPCombo && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/DPCombo && uv sync", "tools": ["downsample_dataset", "evaluate_error", "filter_outliers", "identify_mixedtype", "infer_dp_model", "parse_dpdata", "stat_af", "stat_efv", "train_dp_model"]}, {"name": "HEA_extractTool", "description": "extract structural data of HEA materials from searched or given publications", "author": "@Junshang Zhang", "category": "research", "tools": ["HEA_data_extract", "search_paper"], "path": "servers/HEA_paper_extract", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/HEA_paper_extract && python server.py --port <PORT>\n# stdio mode\ncd servers/HEA_paper_extract && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/HEA_paper_extract && uv sync"}, {"name": "HEA_predictTool", "description": "predict the crystal structure of a type of high entropy alloy", "author": "@Junshang Zhang", "category": "machine-learning", "tools": ["HEA_predictor"], "path": "servers/HEA_predict", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/HEA_predict && python server.py --port <PORT>\n# stdio mode\ncd servers/HEA_predict && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/HEA_predict && uv sync"}, {"name": "matbench_property_prediction", "description": "Predict matbench properties using deep potential models", "author": "2043899742@qq.com", "category": "materials", "tools": ["predict_matbench_properties"], "path": "servers/matbench_property_prediction", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/matbench_property_prediction && python server.py --port <PORT>\n# stdio mode\ncd servers/matbench_property_prediction && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/matbench_property_prediction && uv sync"}, {"name": "NMRglue Toolkit", "description": "NMR data processing and analysis toolkit using nmrglue library for reading, processing, and visualizing NMR spectroscopy data", "author": "@jiaodu1307", "category": "chemistry", "transport": ["sse", "stdio"], "tools": ["apply_apodization", "baseline_correction", "get_spectrum_info", "peak_picking", "phase_correction", "plot_spectrum", "read_nmr_data", "write_nmr_data"], "path": "servers/nmrglue", "start_command": "# SSE mode\ncd servers/nmrglue && python server.py --port <PORT>\n# stdio mode\ncd servers/nmrglue && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/nmrglue && uv sync"}, {"name": "OptimadeServer", "description": "Optimade Server for materials database", "author": "@NingWang-art", "category": "materials", "path": "servers/Optimade_Server", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/Optimade_Server && python server.py --port <PORT>\n# stdio mode\ncd servers/Optimade_Server && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/Optimade_Server && uv sync", "tools": ["fetch_structures_with_bandgap", "fetch_structures_with_filter", "fetch_structures_with_spg"]}, {"name": "orca_tools", "description": "\u8fd0\u884c ORCA \u8ba1\u7b97\u3002", "author": "marvcks", "category": "chemistry", "tools": ["retrieve_content_from_orca_output", "run_orca_calculation"], "path": "servers/ORCA_tools", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/ORCA_tools && python server.py --port <PORT>\n# stdio mode\ncd servers/ORCA_tools && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/ORCA_tools && uv sync"}, {"name": "paper_search", "description": "Scientific literature search tool for arXiv papers", "author": "@lhhhappy", "category": "research", "tools": ["extract_info", "search_papers"], "path": "servers/Paper_Search", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/Paper_Search && python server.py --port <PORT>\n# stdio mode\ncd servers/Paper_Search && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/Paper_Search && uv sync"}, {"name": "perovskite_literature_plot", "description": "Plot perovskite literature data", "author": "Haoming Yan", "category": "data", "tools": ["plot_pce_vs_time_from_excel", "plot_solar_cell_structure_vs_time", "plot_structure_count_vs_time"], "path": "servers/perovskite_literature_plot", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/perovskite_literature_plot && python server.py --port <PORT>\n# stdio mode\ncd servers/perovskite_literature_plot && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/perovskite_literature_plot && uv sync"}, {"name": "pubchem", "description": "PubChem compound data retrieval", "author": "@PhelanShao", "category": "chemistry", "path": "servers/pubchem", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/pubchem && python server.py --port <PORT>\n# stdio mode\ncd servers/pubchem && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/pubchem && uv sync", "tools": ["download_structure", "get_pubchem_data"]}, {"name": "PyMOL", "description": "PyMOL molecular visualization and analysis tool integration", "author": "@vrtejus", "category": "chemistry", "transport": ["sse", "stdio"], "tools": ["parse_and_execute"], "path": "servers/pymol-mcp", "start_command": "# SSE mode\ncd servers/pymol-mcp && python server.py --port <PORT>\n# stdio mode\ncd servers/pymol-mcp && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/pymol-mcp && uv sync"}, {"name": "PYSR-Symbolic-Regression", "description": "PYSR-Symbolic-Regression", "author": "@lhhhappy", "category": "physics", "tools": ["symbolic_regression"], "path": "servers/Symbolic_regression", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/Symbolic_regression && python server.py --port <PORT>\n# stdio mode\ncd servers/Symbolic_regression && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/Symbolic_regression && uv sync"}, {"name": "RDKit Toolkit", "description": "Provides fundamental cheminformatics capabilities like molecule handling, descriptor calculation, and visualization.", "author": "@jiaodu1307", "category": "chemistry", "transport": ["stdio", "sse"], "tools": ["draw_molecule_svg", "generate_fingerprint", "get_basic_properties", "substructure_search", "validate_smiles"], "path": "servers/RDKit", "start_command": "# SSE mode\ncd servers/RDKit && python server.py --port <PORT>\n# stdio mode\ncd servers/RDKit && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/RDKit && uv sync"}, {"name": "StructureGenerateServer", "description": "Generate structures with ASE, CALYPSO, and CrystalFormer", "author": "@A-LOST-WAPITI", "category": "materials", "tools": ["add_cell_for_molecules", "build_bulk_structure_by_template", "build_bulk_structure_by_wyckoff", "build_molecule_structure_from_g2database", "build_molecule_structures_from_smiles", "build_surface_adsorbate", "build_surface_interface", "build_surface_slab", "generate_calypso_structures", "generate_crystalformer_structures", "get_structure_info", "make_amorphous_structure", "make_doped_structure", "make_supercell_structure"], "path": "servers/structure_generate", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/structure_generate && python server.py --port <PORT>\n# stdio mode\ncd servers/structure_generate && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/structure_generate && uv sync"}, {"name": "SuperconductorServer", "description": "Superconductor critical temperature prediction", "author": "@liuyuxiang92", "category": "materials", "path": "servers/superconductor", "transport": ["sse", "stdio"], "start_command": "See README for details", "install_command": "Contact @liuyuxiang92 for access", "tools": ["calculate_enthalpy", "generate_calypso_structure", "generate_crystalformer_structures", "predict_superconductor_Tc"]}, {"name": "ThermoelectricMaterialsServer", "description": "Thermoelectric materials screening with CALYPSO", "author": "@liuyuxiang92", "category": "materials", "path": "servers/thermoelectric", "transport": ["sse", "stdio"], "start_command": "# SSE mode\ncd servers/thermoelectric && python server.py --port <PORT>\n# stdio mode\ncd servers/thermoelectric && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/thermoelectric && uv sync", "tools": ["calculate_enthalpy", "generate_calypso_structures", "generate_crystalformer_structures", "predict_thermoelectric_properties", "screen_thermoelectric_candidate"]}, {"name": "Zotero", "description": "Zotero literature management and semantic search integration for scientific research", "author": "@54yyyu", "category": "research", "transport": ["sse", "stdio"], "tools": ["advanced_search", "batch_update_tags", "create_note", "get_annotations", "get_collection_items", "get_collections", "get_item_children", "get_item_fulltext", "get_item_metadata", "get_notes", "get_recent", "get_search_database_status", "get_tags", "search_by_tag", "search_items", "search_notes", "semantic_search", "update_search_database"], "path": "servers/zotero-mcp", "start_command": "# SSE mode\ncd servers/zotero-mcp && python server.py --port <PORT>\n# stdio mode\ncd servers/zotero-mcp && MCP_TRANSPORT=stdio python server.py", "install_command": "cd servers/zotero-mcp && uv sync"}];
         
         // Theme toggle functionality
-        function toggleTheme() {
+        function toggleTheme() {{
             const body = document.body;
             const themeIcon = document.getElementById('theme-icon');
             const currentTheme = body.getAttribute('data-theme');
             
-            if (currentTheme === 'dark') {
+            if (currentTheme === 'dark') {{
                 body.removeAttribute('data-theme');
                 themeIcon.textContent = '🌙';
                 localStorage.setItem('theme', 'light');
-            } else {
+            }} else {{
                 body.setAttribute('data-theme', 'dark');
                 themeIcon.textContent = '☀️';
                 localStorage.setItem('theme', 'dark');
-            }
-        }
+            }}
+        }}
         
         // Initialize theme from localStorage
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function() {{
             const savedTheme = localStorage.getItem('theme');
             const themeIcon = document.getElementById('theme-icon');
             
-            if (savedTheme === 'dark') {
+            if (savedTheme === 'dark') {{
                 document.body.setAttribute('data-theme', 'dark');
                 themeIcon.textContent = '☀️';
-            } else {
+            }} else {{
                 themeIcon.textContent = '🌙';
-            }
-        });
+            }}
+        }});
         
         // Search functionality
-        document.getElementById('searchInput').addEventListener('input', function(e) {
+        document.getElementById('searchInput').addEventListener('input', function(e) {{
             const searchTerm = e.target.value.toLowerCase();
             filterTools(searchTerm);
-        });
+        }});
         
         // Category filter
-        document.querySelectorAll('.category-tag').forEach(tag => {
-            tag.addEventListener('click', function() {
+        document.querySelectorAll('.category-tag').forEach(tag => {{
+            tag.addEventListener('click', function() {{
                 document.querySelectorAll('.category-tag').forEach(t => t.classList.remove('active'));
                 this.classList.add('active');
                 
                 const category = this.dataset.category;
-                if (category === 'all') {
-                    document.querySelectorAll('.category-section').forEach(section => {
+                if (category === 'all') {{
+                    document.querySelectorAll('.category-section').forEach(section => {{
                         section.style.display = 'block';
-                    });
-                } else {
-                    document.querySelectorAll('.category-section').forEach(section => {
+                    }});
+                }} else {{
+                    document.querySelectorAll('.category-section').forEach(section => {{
                         section.style.display = section.dataset.category === category ? 'block' : 'none';
-                    });
-                }
-            });
-        });
+                    }});
+                }}
+            }});
+        }});
         
-        function filterTools(searchTerm) {
-            document.querySelectorAll('.tool-card').forEach(card => {
+        function filterTools(searchTerm) {{
+            document.querySelectorAll('.tool-card').forEach(card => {{
                 const text = card.textContent.toLowerCase();
                 card.style.display = text.includes(searchTerm) ? 'block' : 'none';
-            });
-        }
+            }});
+        }}
         
-        function showToolDetails(toolName) {
+        function showToolDetails(toolName) {{
             const tool = toolsData.find(t => t.name === toolName);
             if (!tool) return;
             
@@ -1199,46 +1743,60 @@ python server.py --port &lt;port&gt;</div>
                 </div>
                 
                 <div class="modal-section">
-                    <div class="modal-section-title">Installation</div>
-                    <div class="code-block">cd ${tool.path} && uv sync</div>
+                    <div class="modal-section-title">Transport</div>
+                    <p>${getTransportDisplay(tool.transport)}</p>
                 </div>
                 
                 <div class="modal-section">
                     <div class="modal-section-title">Start Command</div>
-                    <div class="code-block">${tool.start_command}</div>
+                    <div class="code-block">cd ${tool.path} && uv run python server.py --port &lt;PORT&gt;</div>
                 </div>
             `;
             
-            if (tool.tools && tool.tools.length > 0) {
+            if (tool.tools && tool.tools.length > 0) {{
                 content += `
                     <div class="modal-section">
                         <div class="modal-section-title">Available Functions (${tool.tools.length})</div>
                         <div class="tool-features">
                 `;
-                tool.tools.forEach(t => {
+                tool.tools.forEach(t => {{
                     content += `<span class="tool-feature">${t}</span>`;
-                });
+                }});
                 content += `
                         </div>
                     </div>
                 `;
-            }
+            }}
             
             document.getElementById('modalContent').innerHTML = content;
             document.getElementById('toolModal').style.display = 'block';
-        }
+        }}
         
-        function closeModal() {
+        function getTransportDisplay(transport) {{
+            if (!Array.isArray(transport)) {{
+                transport = [transport];
+            }}
+            const badges = [];
+            if (transport.includes('sse')) {{
+                badges.push('🔌 SSE (Port-based)');
+            }}
+            if (transport.includes('stdio')) {{
+                badges.push('📝 stdio (Standard I/O)');
+            }}
+            return badges.join(' | ') || '🔄 Both modes';
+        }}
+        
+        function closeModal() {{
             document.getElementById('toolModal').style.display = 'none';
-        }
+        }}
         
         // Close modal when clicking outside
-        window.onclick = function(event) {
+        window.onclick = function(event) {{
             const modal = document.getElementById('toolModal');
-            if (event.target == modal) {
+            if (event.target == modal) {{
                 modal.style.display = 'none';
-            }
-        }
+            }}
+        }}
     </script>
 </body>
 </html>

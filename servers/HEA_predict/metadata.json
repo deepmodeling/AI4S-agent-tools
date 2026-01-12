@@ -1,0 +1,7 @@
+{
+    "name": "HEA_predictTool",
+    "description": "predict the crystal structure of a type of high entropy alloy",
+    "author": "@Junshang Zhang",
+    "category": "machine-learning",
+    "tools": ["HEA_predictor"]
+}

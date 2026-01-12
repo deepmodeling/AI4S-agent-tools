@@ -2,10 +2,10 @@
 name = "paper-search"
 version = "0.1.0"
 description = "Paper Search Service"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 
 dependencies = [
-    "arxiv==1.4.6",
+    "arxiv==2.2.0",
     "fastapi",
     "uvicorn",
     "fastmcp"

@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 from typing import Dict
 
@@ -213,4 +214,6 @@ def cal_vacancy_formation_energy(config_file: Path, work_dir: Path) -> Dict[str,
     }
 
 if __name__ == '__main__':
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

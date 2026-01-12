@@ -1,0 +1,8 @@
+{
+    "name": "NMRglue Toolkit",
+    "description": "NMR data processing and analysis toolkit using nmrglue library for reading, processing, and visualizing NMR spectroscopy data",
+    "author": "@jiaodu1307",
+    "category": "chemistry",
+    "transport": ["sse", "stdio"],
+    "tools": ["read_nmr_data", "write_nmr_data", "phase_correction", "baseline_correction", "peak_picking", "plot_spectrum", "get_spectrum_info", "apply_apodization"]
+}

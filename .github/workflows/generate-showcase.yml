@@ -30,20 +30,32 @@ jobs:
         with:
           python-version: '3.11'
           
+      - name: Create data directory
+        run: |
+          mkdir -p data
+          
       - name: Generate TOOLS.json
         run: |
           python scripts/generate_tools_json.py
+          
+      - name: Generate MCP configs
+        run: |
+          python scripts/generate_mcp_configs.py
+          
+      - name: Update contributors
+        run: |
+          python scripts/update_contributors.py
           
       - name: Generate showcase page
         run: |
           python scripts/generate_simple_showcase.py
           
-      - name: Commit generated files (dev branches only)
-        if: startsWith(github.ref, 'refs/heads/dev/')
+      - name: Commit generated files
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/dev/'))
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add TOOLS.json showcase/index.html || true
+          git add data/tools.json data/contributors.json data/CONTRIBUTORS.md showcase/index.html servers/*/mcp-config.json || true
           git commit -m "chore: update generated files [skip ci]" || echo "No changes to commit"
           git push || echo "No changes to push"
           

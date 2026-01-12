@@ -1,0 +1,9 @@
+{
+    "name": "Zotero",
+    "description": "Zotero literature management and semantic search integration for scientific research",
+    "author": "@54yyyu",
+    "category": "research",
+    "transport": ["sse", "stdio"],
+    "tools": [
+    ]
+}

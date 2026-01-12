@@ -4,13 +4,13 @@ Example MCP Server using the new simplified pattern.
 This demonstrates how to create a new AI4S tool with tools defined at module level.
 """
 import argparse
-
+import os
 
 from mcp.server.fastmcp import FastMCP
 
 def parse_args():
     """Parse command line arguments for MCP server."""
-    parser = argparse.ArgumentParser(description="DPA Calculator MCP Server")
+    parser = argparse.ArgumentParser(description="MCP Server")
     parser.add_argument('--port', type=int, default=50001, help='Server port (default: 50001)')
     parser.add_argument('--host', default='0.0.0.0', help='Server host (default: 0.0.0.0)')
     parser.add_argument('--log-level', default='INFO', 
@@ -64,4 +64,6 @@ def demo_function(message: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

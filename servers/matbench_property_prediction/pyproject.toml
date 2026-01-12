@@ -1,0 +1,25 @@
+[project]
+name = "matbench-property_prediciton-mcp-server"
+version = "0.1.0"
+description = "Predict matbench properties using deep potential models"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "requests>=2.32.3",
+    "flask>=3.1.1",
+    "scipy>=1.12.0",
+    "ase>=3.22.1",
+    "torchaudio",
+    "torchvision",
+    "deepmd-kit==3.1.0",  
+    "numpy==1.26.4",
+    "typing-extensions",  
+    "pyyaml",
+    "science-agent-sdk" 
+]
+
+[project.scripts]
+example-mcp = "server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

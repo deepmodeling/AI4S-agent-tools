@@ -1,0 +1,21 @@
+[project]
+name = "nmrglue-mcp-server"
+version = "0.1.0"
+description = "NMR data processing and analysis tool using nmrglue library"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "fastmcp",
+    "numpy",
+    "scipy",
+    "nmrglue",
+    "matplotlib",
+    "pytest>=8.4.1",
+]
+
+[project.scripts]
+nmrglue-mcp = "server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

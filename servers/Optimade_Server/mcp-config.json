@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "OptimadeServer": {
+      "command": "python",
+      "args": [
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "OptimadeServer",
+        "description": "Optimade Server for materials database",
+        "author": "@NingWang-art",
+        "category": "materials",
+        "transport": [
+          "sse",
+          "stdio"
+        ]
+      }
+    }
+  }
+}

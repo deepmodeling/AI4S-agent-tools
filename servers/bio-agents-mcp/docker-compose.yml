@@ -1,0 +1,61 @@
+services:
+  pdb-server:
+    build:
+      context: ./protein_data_bank_mcp
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    ports:
+      - "8080:8080"
+  chembl-server:
+    build:
+      context: ./chembl_mcp
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    ports:
+      - "8081:8081"
+
+  ollama:
+    image: ollama/ollama:latest
+    runtime: nvidia
+    env_file:
+      - .env.docker
+    environment:
+      - OLLAMA_MODELS=/.ollama/models
+    expose:
+      - "11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ollama_models:/.ollama
+
+  llm-client:
+    build:
+      context: ./llm_client
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - ollama
+      - pdb-server
+      - chembl-server
+    environment:
+      - OLLAMA_HOST=ollama
+      - PDB_MCP_HOST=pdb-server
+      - CHEMBL_MCP_HOST=chembl-server
+
+volumes:
+  ollama_models:
+    driver: local
+    driver_opts:
+      type: none
+      device: /usr/share/ollama/.ollama
+      o: bind

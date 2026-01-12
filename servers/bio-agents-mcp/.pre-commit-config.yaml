@@ -1,0 +1,27 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-json
+-   repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+    -   id: flake8
+        args: [--max-line-length=120]
+-   repo: https://github.com/compilerla/conventional-pre-commit
+    rev: 'v4.0.0'
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: []
+-   repo: https://github.com/pre-commit/mirrors-autopep8
+    rev: v1.5.7
+    hooks:
+    -   id: autopep8
+-   repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.9.5
+    hooks:
+    -   id: ruff

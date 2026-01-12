@@ -16,7 +16,7 @@ FASTGPT_AUTH_TOKEN = os.getenv("FASTGPT_AUTH_TOKEN")
 
 def parse_args():
     """Parse command line arguments for MCP server."""
-    parser = argparse.ArgumentParser(description="DPA Calculator MCP Server")
+    parser = argparse.ArgumentParser(description="DeePMD Docs RAG MCP Server")
     parser.add_argument('--port', type=int, default=50001, help='Server port (default: 50001)')
     parser.add_argument('--host', default='0.0.0.0', help='Server host (default: 0.0.0.0)')
     parser.add_argument('--log-level', default='INFO', 
@@ -33,8 +33,9 @@ def parse_args():
     return args
 
 args = parse_args()
-backend = Client("https://api.fastgpt.in/api/mcp/app/wrSvRtDydWEb7faAP6uPooSX/mcp")
-mcp = FastMCP.as_proxy(backend, name="FastGPT Proxy Server", port=args.port)
+backend = Client("https://zqibhdki.sealosbja.site/api/mcp/app/tRmg19AXvG2GL46rZXadjsIb/mcp")
+mcp = FastMCP.as_proxy(backend, name="FastGPT Proxy Server", port=args.port, host=args.host)
+
 
 @mcp.tool()
 def upload_single_file_to_deepmd_knowledge_base(file_url: str):

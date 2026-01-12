@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "ThermoelectricMaterialsServer": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/thermoelectric",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "ThermoelectricMaterialsServer",
+        "description": "Thermoelectric materials screening with CALYPSO",
+        "author": "@liuyuxiang92",
+        "category": "materials"
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "dna_sequence_analyzer",
+  "description": "DNA sequence analysis tool with length calculation, base counting, GC content, reverse complement, and translation using the standard genetic code. Option to stop at stop codons.",
+  "author": "@lhappy",
+  "category": "biology",
+  "transport": [
+    "sse",
+    "stdio"
+  ],
+  "tools": [
+    "analyze_dna_sequence",
+    "reverse_complement",
+    "translate_dna"
+  ]
+}

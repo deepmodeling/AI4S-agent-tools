@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "HEA_predictTool": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/HEA_predict",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "HEA_predictTool",
+        "description": "predict the crystal structure of a type of high entropy alloy",
+        "author": "@Junshang Zhang",
+        "category": "machine-learning"
+      }
+    }
+  }
+}

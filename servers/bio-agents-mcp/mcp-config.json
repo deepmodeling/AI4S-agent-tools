@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "bio-agents-mcp": {
+      "command": "python",
+      "args": [
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "bio-agents-mcp",
+        "description": "A collection of microservices for natural language interaction with biological databases, including Protein Data Bank (PDB) and ChEMBL APIs",
+        "author": "@dogeplusplus",
+        "category": "biology",
+        "transport": [
+          "sse",
+          "stdio"
+        ]
+      }
+    }
+  }
+}

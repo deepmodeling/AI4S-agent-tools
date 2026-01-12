@@ -1,0 +1,8 @@
+{
+    "name": "PYSR-Symbolic-Regression",
+    "description": "PYSR-Symbolic-Regression",
+    "author": "@lhhhappy",
+    "category": "physics",
+    "tools": ["symbolic_regression"]
+}
+

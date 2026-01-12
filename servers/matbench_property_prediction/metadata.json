@@ -1,0 +1,7 @@
+{
+    "name": "matbench_property_prediction",
+    "description": "Predict matbench properties using deep potential models",
+    "author": "2043899742@qq.com",
+    "category": "materials",
+    "tools": ["predict_matbench_properties"]
+}

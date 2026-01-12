@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "ABACUS": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/ABACUS-tools",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "ABACUS",
+        "description": "First principles calculations bridge for AI models - ABACUS computational jobs",
+        "author": "@ahxbcn",
+        "category": "materials"
+      }
+    }
+  }
+}

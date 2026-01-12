@@ -1,0 +1,8 @@
+{
+    "name": "PyMOL",
+    "description": "PyMOL molecular visualization and analysis tool integration",
+    "author": "@vrtejus",
+    "category": "chemistry",
+    "transport": ["sse", "stdio"],
+    "tools": ["parse_and_execute"]
+}

@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "Zotero": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/zotero-mcp",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "Zotero",
+        "description": "Zotero literature management and semantic search integration for scientific research",
+        "author": "@54yyyu",
+        "category": "research",
+        "transport": [
+          "sse",
+          "stdio"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+[project]
+name = "dna_sequence_analyzer"
+version = "0.1.0"
+description = "DNA序列分析工具 - 基础分析、反向互补序列生成和遗传密码翻译"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.3.0",
+    "biopython>=1.81",
+    "numpy>=1.21.0"
+]

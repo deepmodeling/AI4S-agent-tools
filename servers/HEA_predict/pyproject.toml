@@ -1,0 +1,22 @@
+[project]
+name = "HEA_predictTool"
+version = "0.1.0"
+description = "predict the crystal structure of a type of high entropy alloy"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "numpy",
+    "pandas",
+    "mendeleev",
+    "featurebox",
+    "joblib"
+]
+
+[tool.setuptools.packages.find]
+where = []
+[project.scripts]
+example-mcp = "server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

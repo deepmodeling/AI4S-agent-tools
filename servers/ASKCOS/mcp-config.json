@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "askcos": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/ASKCOS",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio",
+        "ASKCOS_API_URL": "http://localhost:8080/askcos/api"
+      },
+      "metadata": {
+        "name": "ASKCOS",
+        "description": "Computer-aided synthesis planning tool for retrosynthesis analysis",
+        "author": "@jiaodu",
+        "category": "chemistry"
+      }
+    }
+  }
+}

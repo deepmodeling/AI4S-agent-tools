@@ -1,0 +1,23 @@
+[project]
+name = "symbolic-regression-mcp-server"
+version = "0.1.0"
+description = "Symbolic Regression MCP server for discovering mathematical expressions from data"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp",
+    "fastmcp",
+    "numpy",
+    "scipy",
+    "pandas",
+    "pysr",
+    "sympy",
+    "pandas",
+    "scipy"
+]
+
+[project.scripts]
+symbolic-regression-mcp = "server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

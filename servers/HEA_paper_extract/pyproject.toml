@@ -1,0 +1,20 @@
+[project]
+name = "HEA_extractTool"
+version = "0.1.0"
+description = "extract structural data of HEA materials from searched or given publications"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "numpy",
+    "pandas",
+    "arxiv",
+    "pathlib",
+    "requests"
+]
+
+[project.scripts]
+example-mcp = "server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

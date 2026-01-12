@@ -1,0 +1,7 @@
+{
+    "name": "OptimadeServer",
+    "description": "Optimade Server for materials database",
+    "author": "@NingWang-art",
+    "category": "materials",
+    "tools": ["fetch_structures_with_filter", "fetch_structures_with_spg", "fetch_structures_with_bandgap"]
+}

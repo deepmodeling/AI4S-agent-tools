@@ -1,0 +1,7 @@
+{
+    "name": "perovskite_literature_plot",
+    "description": "Plot perovskite literature data",
+    "author": "Haoming Yan",
+    "category": "data",
+    "tools": ["plot_solar_cell_structure_vs_time", "plot_structure_count_vs_time", "plot_pce_vs_time_from_excel"]
+}

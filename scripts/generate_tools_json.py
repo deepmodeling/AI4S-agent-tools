@@ -14,6 +14,7 @@ from typing import Dict, List, Any, Optional
 import tomllib
 import logging
 
+
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -55,108 +56,63 @@ def read_pyproject_toml(server_dir: Path) -> Dict[str, Any]:
 
 
 def extract_tools_from_server(server_dir: Path) -> List[str]:
-    """Extract tool names from server implementation."""
+    """Extract tool names from server implementation by searching all Python files."""
     tools = []
     
-    # First, try to find tools in server files
-    for pattern in ['server.py', '*_server.py', '*_mcp_server.py']:
-        for server_file in server_dir.glob(pattern):
-            try:
-                with open(server_file, 'r', encoding='utf-8') as f:
-                    tree = ast.parse(f.read())
-                
-                # Two patterns to look for:
-                # 1. Legacy: Functions decorated with @mcp_server containing @mcp.tool() inside
-                # 2. New: Module-level functions decorated with @mcp.tool()
-                
-                # Pattern 1: Legacy - Find functions decorated with @mcp_server
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.FunctionDef):
-                        # Check if this function has @mcp_server decorator
-                        has_mcp_server = False
-                        for decorator in node.decorator_list:
-                            if isinstance(decorator, ast.Call):
-                                if (isinstance(decorator.func, ast.Name) and 
-                                    decorator.func.id == 'mcp_server'):
-                                    has_mcp_server = True
-                                    break
-                        
-                        # If we found a function with @mcp_server, look for tools inside it
-                        if has_mcp_server:
-                            # Look for nested function definitions with @mcp.tool() decorator
-                            for inner_node in ast.walk(node):
-                                if isinstance(inner_node, ast.FunctionDef) and inner_node != node:
-                                    for decorator in inner_node.decorator_list:
-                                        # Check for @mcp.tool() pattern
-                                        if isinstance(decorator, ast.Call):
-                                            if (isinstance(decorator.func, ast.Attribute) and 
-                                                decorator.func.attr == 'tool' and
-                                                isinstance(decorator.func.value, ast.Name)):
-                                                tools.append(inner_node.name)
-                                        # Also check for @mcp.tool without parentheses
-                                        elif isinstance(decorator, ast.Attribute):
-                                            if (decorator.attr == 'tool' and
-                                                isinstance(decorator.value, ast.Name)):
-                                                tools.append(inner_node.name)
-                
-                # Pattern 2: New - Module-level @mcp.tool() decorated functions
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.FunctionDef):
-                        # Skip if this is inside another function
-                        parent_funcs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and node in ast.walk(n) and n != node]
-                        if not parent_funcs:  # This is a module-level function
-                            for decorator in node.decorator_list:
-                                # Check for @mcp.tool() pattern
-                                if isinstance(decorator, ast.Call):
-                                    if (isinstance(decorator.func, ast.Attribute) and 
-                                        decorator.func.attr == 'tool' and
-                                        isinstance(decorator.func.value, ast.Name) and
-                                        decorator.func.value.id == 'mcp'):
-                                        tools.append(node.name)
-                                # Also check for @mcp.tool without parentheses
-                                elif isinstance(decorator, ast.Attribute):
-                                    if (decorator.attr == 'tool' and
-                                        isinstance(decorator.value, ast.Name) and
-                                        decorator.value.id == 'mcp'):
-                                        tools.append(node.name)
-                        
-            except Exception as e:
-                logger.debug(f"Failed to extract tools from {server_file}: {e}")
-    
-    # Special handling for servers that load tools dynamically (like ABACUS)
-    # Check if there's a modules directory with tool definitions
-    for mod_dir in server_dir.glob("src/*/modules"):
-        if mod_dir.is_dir():
-            # Scan all Python files in modules directory
-            for py_file in mod_dir.glob("*.py"):
-                if py_file.name.startswith("_") or py_file.name in ["utils.py", "comm.py"]:
-                    continue
-                
-                try:
-                    with open(py_file, 'r', encoding='utf-8') as f:
-                        tree = ast.parse(f.read())
+    # Recursively search all .py files in the server directory
+    for py_file in server_dir.rglob('*.py'):
+        # Skip __pycache__, .venv, and other virtual environment directories
+        path_parts = py_file.parts
+        if any(part in ['__pycache__', '.venv', 'venv', '.env', 'env', 'site-packages'] for part in path_parts):
+            continue
+            
+        try:
+            # Read the file content to check for commented lines
+            with open(py_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                lines = content.splitlines()
+            
+            # Parse the AST
+            tree = ast.parse(content)
+            
+            # Look for any function decorated with @mcp.tool
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and hasattr(node, 'lineno'):
+                    # Check if this function has @mcp.tool decorator
+                    has_mcp_tool = False
+                    decorator_line = None
                     
-                    # Look for @mcp.tool() decorated functions
-                    for node in ast.walk(tree):
-                        if isinstance(node, ast.FunctionDef):
-                            for decorator in node.decorator_list:
-                                # Check for @mcp.tool() pattern
-                                if isinstance(decorator, ast.Call):
-                                    if (isinstance(decorator.func, ast.Attribute) and 
-                                        decorator.func.attr == 'tool' and
-                                        isinstance(decorator.func.value, ast.Name) and
-                                        decorator.func.value.id == 'mcp'):
-                                        tools.append(node.name)
-                                # Also check for @mcp.tool without parentheses
-                                elif isinstance(decorator, ast.Attribute):
-                                    if (decorator.attr == 'tool' and
-                                        isinstance(decorator.value, ast.Name) and
-                                        decorator.value.id == 'mcp'):
-                                        tools.append(node.name)
-                except Exception as e:
-                    logger.debug(f"Failed to extract tools from module {py_file}: {e}")
+                    for decorator in node.decorator_list:
+                        if hasattr(decorator, 'lineno'):
+                            decorator_line = decorator.lineno - 1  # Convert to 0-based
+                            
+                        # Check for @mcp.tool() pattern
+                        if isinstance(decorator, ast.Call):
+                            if (isinstance(decorator.func, ast.Attribute) and 
+                                decorator.func.attr == 'tool' and
+                                isinstance(decorator.func.value, ast.Name) and
+                                decorator.func.value.id == 'mcp'):
+                                has_mcp_tool = True
+                        # Also check for @mcp.tool without parentheses
+                        elif isinstance(decorator, ast.Attribute):
+                            if (decorator.attr == 'tool' and
+                                isinstance(decorator.value, ast.Name) and
+                                decorator.value.id == 'mcp'):
+                                has_mcp_tool = True
+                    
+                    # If we found @mcp.tool, check if it's not commented
+                    if has_mcp_tool and decorator_line is not None and decorator_line < len(lines):
+                        line = lines[decorator_line].strip()
+                        # Skip if the line is commented
+                        if not line.startswith('#'):
+                            tools.append(node.name)
+                            logger.debug(f"  Found tool '{node.name}' in {py_file.relative_to(server_dir)}")
+                                
+        except Exception as e:
+            logger.debug(f"Failed to parse {py_file}: {e}")
     
-    return list(set(tools))  # Remove duplicates
+    # Remove duplicates and sort for consistent output
+    return sorted(list(set(tools)))
 
 
 def scan_server_directory(server_dir: Path) -> Optional[Dict[str, Any]]:
@@ -179,6 +135,12 @@ def scan_server_directory(server_dir: Path) -> Optional[Dict[str, Any]]:
     # Add path information
     metadata['path'] = f"servers/{server_dir.name}"
     
+    # Extract transport support (default to both)
+    transport = metadata.get('transport', ['sse', 'stdio'])
+    if isinstance(transport, str):
+        transport = [transport]
+    metadata['transport'] = transport
+    
     # Enhance with pyproject.toml data
     pyproject_data = read_pyproject_toml(server_dir)
     
@@ -191,8 +153,27 @@ def scan_server_directory(server_dir: Path) -> Optional[Dict[str, Any]]:
     metadata.setdefault('description', f"{server_dir.name} MCP server")
     metadata.setdefault('author', '@unknown')
     
-    # Generate start command based on directory name
-    metadata['start_command'] = f"cd {metadata['path']} && python server.py --port <PORT>"
+    # Generate start command based on transport support and server.py existence
+    server_py_path = server_dir / "server.py"
+    if server_py_path.exists():
+        # Generate commands based on transport support
+        commands = []
+        if 'sse' in metadata['transport']:
+            commands.append(f"# SSE mode\ncd {metadata['path']} && python server.py --port <PORT>")
+        if 'stdio' in metadata['transport']:
+            commands.append(f"# stdio mode\ncd {metadata['path']} && MCP_TRANSPORT=stdio python server.py")
+        metadata['start_command'] = '\n'.join(commands) if commands else "See README for details"
+    else:
+        # For closed-source or external tools without server.py
+        metadata['start_command'] = "See README for details"
+    
+    # Generate install command based on whether server.py exists
+    if server_py_path.exists():
+        metadata['install_command'] = f"cd {metadata['path']} && uv sync"
+    else:
+        # For closed-source tools without server.py
+        author = metadata.get('author', '@author')
+        metadata['install_command'] = f"Contact {author} for access"
     
     return metadata
 
@@ -249,9 +230,17 @@ def generate_tools_json(root_dir: Path) -> Dict[str, Any]:
         metadata = scan_server_directory(server_dir)
         
         if metadata:
-            # Extract available tools
-            tools_list = extract_tools_from_server(server_dir)
-            metadata['tools'] = tools_list
+            # Extract available tools from code
+            tools_from_code = extract_tools_from_server(server_dir)
+            
+            # Get tools from metadata.json if present
+            tools_from_metadata = metadata.get('tools', [])
+            if isinstance(tools_from_metadata, str):
+                tools_from_metadata = [tools_from_metadata]
+            
+            # Combine tools from both sources (union) and sort for consistent output
+            all_tools = sorted(list(set(tools_from_code + tools_from_metadata)))
+            metadata['tools'] = all_tools
             
             # Use category from decorator if available, otherwise auto-categorize
             if 'category' not in metadata:
@@ -267,17 +256,93 @@ def generate_tools_json(root_dir: Path) -> Dict[str, Any]:
                 metadata['category'] = categories_config.get('default_category', 'general')
             
             tools.append(metadata)
-            logger.info(f"  Found: {metadata['name']} with {len(tools_list)} tools (category: {metadata['category']})")
+            logger.info(f"  Found: {metadata['name']} with {len(all_tools)} tools (category: {metadata['category']})")
+            if tools_from_metadata:
+                logger.info(f"    Tools from metadata.json: {tools_from_metadata}")
+            if tools_from_code:
+                logger.info(f"    Tools from code scanning: {tools_from_code}")
     
-    # Sort tools by name
-    tools.sort(key=lambda x: x['name'])
+    # Sort tools by name (case-insensitive)
+    tools.sort(key=lambda x: x['name'].lower())
+    
+    # Sort categories for consistent output
+    sorted_categories = dict(sorted(categories_config["categories"].items()))
     
     return {
         "version": "1.0.0",
         "description": "AI4S Agent Tools Registry - A collection of MCP servers for scientific computing",
-        "categories": categories_config["categories"],
+        "categories": sorted_categories,
         "tools": tools
     }
+
+
+def merge_tools_data(existing_data: Dict[str, Any], new_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge new tools data with existing data, preserving structure."""
+    # Start with existing data as base
+    merged = existing_data.copy()
+    
+    # Update version and description
+    merged['version'] = new_data['version']
+    merged['description'] = new_data['description']
+    
+    # Merge categories (new categories override old ones)
+    merged['categories'] = new_data['categories']
+    
+    # Create a mapping of existing tools by name for efficient lookup
+    existing_tools = {tool['name']: tool for tool in existing_data.get('tools', [])}
+    
+    # Merge tools
+    merged_tools = []
+    for new_tool in new_data['tools']:
+        tool_name = new_tool['name']
+        if tool_name in existing_tools:
+            # Merge with existing tool, preserving manual edits
+            existing_tool = existing_tools[tool_name]
+            merged_tool = existing_tool.copy()
+            
+            # Update fields that are auto-generated
+            merged_tool['tools'] = new_tool['tools']  # Update tool list
+            merged_tool['path'] = new_tool['path']     # Update path
+            merged_tool['transport'] = new_tool['transport']  # Update transport
+            merged_tool['start_command'] = new_tool['start_command']
+            merged_tool['install_command'] = new_tool['install_command']
+            
+            # Preserve manually edited fields if they exist
+            if 'description' in existing_tool and existing_tool['description'] != f"{tool_name} MCP server":
+                # Keep existing description if it's been customized
+                pass
+            else:
+                merged_tool['description'] = new_tool['description']
+            
+            # Preserve author if it's been customized
+            if 'author' in existing_tool and existing_tool['author'] != '@unknown':
+                # Keep existing author
+                pass
+            else:
+                merged_tool['author'] = new_tool['author']
+            
+            # Preserve category if it's been manually set
+            if 'category' in existing_tool:
+                # Validate category still exists
+                if existing_tool['category'] in new_data['categories']:
+                    # Keep existing category
+                    pass
+                else:
+                    # Category no longer valid, use new one
+                    merged_tool['category'] = new_tool['category']
+            else:
+                merged_tool['category'] = new_tool['category']
+            
+            merged_tools.append(merged_tool)
+        else:
+            # New tool, add it
+            merged_tools.append(new_tool)
+    
+    # Sort tools for consistent output
+    merged_tools.sort(key=lambda x: x['name'].lower())
+    merged['tools'] = merged_tools
+    
+    return merged
 
 
 def main():
@@ -287,15 +352,34 @@ def main():
     
     logger.info(f"Generating TOOLS.json for repository: {root_dir}")
     
-    # Generate the data
-    tools_data = generate_tools_json(root_dir)
+    # Generate the new data
+    new_tools_data = generate_tools_json(root_dir)
     
-    if not tools_data.get('tools'):
+    if not new_tools_data.get('tools'):
         logger.error("No tools found!")
         return 1
     
+    # Check if existing file exists
+    output_path = root_dir / "data" / "tools.json"
+    if output_path.exists():
+        # Load existing data
+        try:
+            with open(output_path, 'r', encoding='utf-8') as f:
+                existing_data = json.load(f)
+            logger.info("Loaded existing tools.json for incremental update")
+            
+            # Merge with new data
+            tools_data = merge_tools_data(existing_data, new_tools_data)
+            logger.info("Merged new tools with existing data")
+        except Exception as e:
+            logger.warning(f"Failed to load existing tools.json: {e}")
+            logger.info("Falling back to complete regeneration")
+            tools_data = new_tools_data
+    else:
+        # No existing file, use new data
+        tools_data = new_tools_data
+    
     # Write to file
-    output_path = root_dir / "TOOLS.json"
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(tools_data, f, indent=2, ensure_ascii=False)
     

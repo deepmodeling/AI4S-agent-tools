@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "DPComboServer": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/DPCombo",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "DPComboServer",
+        "description": "A Server for DP model training/finetuning/inference and dataset manipulation.",
+        "author": "@SchrodingersCattt",
+        "category": "materials"
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+    "name": "HEA_extractTool",
+    "description": "extract structural data of HEA materials from searched or given publications",
+    "author": "@Junshang Zhang",
+    "category": "research",
+    "tools": ["HEA_data_extract","search_paper"]
+}

@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "deepmd_docs_rag": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/deepmd_docs_rag",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "deepmd_docs_rag",
+        "description": "DeepMD documentation RAG server",
+        "author": "@felix5572",
+        "category": "materials"
+      }
+    }
+  }
+}

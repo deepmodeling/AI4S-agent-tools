@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "paper_search": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/Paper_Search",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "paper_search",
+        "description": "Scientific literature search tool for arXiv papers",
+        "author": "@lhhhappy",
+        "category": "research"
+      }
+    }
+  }
+}

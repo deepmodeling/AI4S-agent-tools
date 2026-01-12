@@ -1,0 +1,17 @@
+[project]
+name = "rdkit-mcp-server"
+version = "0.1.0"
+description = "A core chemistry toolkit for AI4S-agent-tools, powered by RDKit."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "fastmcp",
+    "rdkit",
+    "numpy"
+]
+
+[project.scripts]
+rdkit-mcp = "server:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,26 @@
+{
+  "name": "bio-agents-mcp",
+  "description": "A collection of microservices for natural language interaction with biological databases, including Protein Data Bank (PDB) and ChEMBL APIs",
+  "author": "@dogeplusplus",
+  "category": "biology",
+  "transport": ["sse", "stdio"],
+  "tools": [
+    "structural_assembly_description",
+    "chemical_component",
+    "drugbank_annotations",
+    "polymer_entity_instance",
+    "branched_entity_instance",
+    "non_polymer_entity_instance",
+    "uniprot_annotations",
+    "branched_entity",
+    "polymer_entity",
+    "non_polymer_entity",
+    "structure",
+    "pubmed_annotations",
+    "aggregation_group_provenance",
+    "pdb_cluster_data_aggregation",
+    "pdb_cluster_data_aggregation_method",
+    "pairwise_polymeric_interface_description",
+    "get_residue_chains"
+  ]
+}

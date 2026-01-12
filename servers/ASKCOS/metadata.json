@@ -1,0 +1,8 @@
+{
+    "name": "ASKCOS",
+    "description": "Computer-aided synthesis planning tool for retrosynthesis analysis",
+    "author": "@jiaodu1307",
+    "category": "chemistry",
+    "transport": ["sse", "stdio"],
+    "tools": ["retrosynthesis_planning", "synthesis_route_analysis", "reaction_prediction"]
+}

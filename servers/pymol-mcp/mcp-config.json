@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "PyMOL": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/pymol-mcp",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "PyMOL",
+        "description": "PyMOL molecular visualization and analysis tool integration",
+        "author": "@vrtejus",
+        "category": "chemistry",
+        "transport": [
+          "sse",
+          "stdio"
+        ]
+      }
+    }
+  }
+}

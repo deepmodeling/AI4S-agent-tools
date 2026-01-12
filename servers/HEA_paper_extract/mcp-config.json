@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "HEA_extractTool": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/HEA_paper_extract",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "HEA_extractTool",
+        "description": "extract structural data of HEA materials from searched or given publications",
+        "author": "@Junshang Zhang",
+        "category": "research"
+      }
+    }
+  }
+}

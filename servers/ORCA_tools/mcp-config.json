@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "orca_tools": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/ORCA_tools",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "orca_tools",
+        "description": "运行 ORCA 计算。",
+        "author": "marvcks",
+        "category": "chemistry"
+      }
+    }
+  }
+}

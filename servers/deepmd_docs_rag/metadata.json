@@ -2,5 +2,6 @@
 "name": "deepmd_docs_rag",
 "description": "DeepMD documentation RAG server",
 "author": "@felix5572",
-"category": "materials"
+"category": "materials",
+"tools": ["upload_single_file_to_deepmd_knowledge_base","deepmd-docs-workflow"]
 }

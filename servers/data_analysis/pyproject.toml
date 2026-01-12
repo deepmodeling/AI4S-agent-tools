@@ -1,0 +1,14 @@
+[project]
+name = "data-analysis"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.10.6",
+    "numpy>=2.2.6",
+    "pandas>=2.3.1",
+    "scikit-learn>=1.7.1",
+    "shap>=0.48.0",
+    "xgboost>=3.0.2",
+]

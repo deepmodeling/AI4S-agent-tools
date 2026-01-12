@@ -6,13 +6,14 @@ import arxiv
 import json
 import os
 from typing import List
+
 from mcp.server.fastmcp import FastMCP
 
 PAPER_DIR = "papers"
 
 def parse_args():
     """Parse command line arguments for MCP server."""
-    parser = argparse.ArgumentParser(description="DPA Calculator MCP Server")
+    parser = argparse.ArgumentParser(description="Paper Search MCP Server")
     parser.add_argument('--port', type=int, default=50001, help='Server port (default: 50001)')
     parser.add_argument('--host', default='0.0.0.0', help='Server host (default: 0.0.0.0)')
     parser.add_argument('--log-level', default='INFO', 
@@ -31,7 +32,7 @@ def parse_args():
 args = parse_args()
 mcp = FastMCP("paper_search", port=args.port, host=args.host)
     
-    
+
 @mcp.tool()
 def search_papers(topic: str, max_results: int = 5) -> List[str]:
     """
@@ -122,4 +123,6 @@ def extract_info(paper_id: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

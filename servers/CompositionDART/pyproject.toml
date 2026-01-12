@@ -1,0 +1,28 @@
+[project]
+name = "dart"
+version = "0.1.0"
+description = "Deep Potential Agent for atomistic simulation"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+
+dependencies = [
+    "tqdm",
+    "requests>=2.32.3",
+    "flask>=3.1.1",
+    "scipy>=1.12.0",
+    "ase>=3.22.1",
+    "seekpath>=2.0.1",
+    "torchaudio",
+    "torchvision",
+    "tensorflow==2.19.0",
+    "deepmd-kit==3.1.0",  
+    "numpy==1.26.4",
+    "dpdata",
+    "phonopy",
+    "pymatgen",
+    "spglib",
+    "matplotlib",    
+    "typing-extensions",  
+    "pyyaml",
+    "bohr-agent-sdk"    
+]

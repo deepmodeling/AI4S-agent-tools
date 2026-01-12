@@ -1,0 +1,8 @@
+{
+    "name": "RDKit Toolkit",
+    "description": "Provides fundamental cheminformatics capabilities like molecule handling, descriptor calculation, and visualization.",
+    "author": "@jiaodu1307",
+    "category": "chemistry",
+    "transport": ["stdio", "sse"],
+    "tools": ["validate_smiles", "get_basic_properties", "generate_fingerprint", "substructure_search", "draw_molecule_svg"]
+}

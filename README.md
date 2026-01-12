@@ -3,7 +3,8 @@
 An open project by the DeepModeling community - Building intelligent tools for scientific research.
 
 🌐 **[View Tool Showcase](https://deepmodeling.github.io/AI4S-agent-tools/)** | 
-🤝 **[Contribute](CONTRIBUTING.md)**
+🤝 **[Contribute](CONTRIBUTING.md)** |
+
 
 ## 🎯 Mission
 
@@ -58,6 +59,27 @@ uv sync
 python server.py --port 50002
 ```
 
+### 🆕 AI-Powered Tool Generator (Beta)
+
+Generate MCP tools automatically through conversational AI:
+
+```bash
+# Configure environment variable (create .env file)
+
+# Run the interactive tool generator
+adk web
+
+# Follow the conversational prompts to create your tool
+```
+
+The MCP Agent will guide you through creating a fully-configured MCP server that follows all project standards. This beta feature uses AI to:
+- Collect your tool requirements through friendly dialogue
+- Generate complete server code with proper error handling
+- Create all necessary configuration files (metadata.json, pyproject.toml)
+- Ensure compliance with project standards
+
+See [mcp-agent/README.md](mcp-agent/README.md) for more details.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete guide.
 
 ## 🏗️ Architecture
@@ -75,6 +97,14 @@ We welcome contributions from:
 - 🤖 AI researchers building science agents
 - 📚 Anyone passionate about open science
 
+### 💬 Community
+
+Join our WeChat community group to discuss ideas and collaborate:
+
+<div align="center">
+  <img src="data/image.png" alt="WeChat Community Group" width="200">
+</div>
+
 ## 📄 License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
@@ -82,3 +112,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## 🙏 Acknowledgments
 
 Built with ❤️ by the [DeepModeling](https://github.com/deepmodeling) community.
+
+
+
+

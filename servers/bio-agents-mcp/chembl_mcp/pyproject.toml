@@ -1,0 +1,21 @@
+[project]
+name = "chembl_mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.11.12",
+    "httpx>=0.28.1",
+    "mcp>=1.1.2",
+    "hydra-core>=1.2.0",
+    "python-dotenv>=1.0.1",
+    "chembl-webresource-client>=0.10.9",
+]
+
+[build-system]
+requires = [ "hatchling",]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.target.sdist.force-include]
+"server.py" = "src/chembl_mcp/server.py"

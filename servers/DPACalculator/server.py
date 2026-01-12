@@ -9,7 +9,7 @@ import argparse
 
 import numpy as np
 from ase import Atoms, io, units
-from ase.build import add_adsorbate, add_vacuum, bulk, molecule, surface
+from ase.build import add_adsorbate, add_vacuum, bulk, molecule, surface, stack
 from ase.constraints import ExpCellFilter
 from ase.io import read, write
 from ase.md.andersen import Andersen
@@ -38,6 +38,9 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 THz_TO_K = 47.9924  # 1 THz ≈ 47.9924 K
 EV_A3_TO_GPA = 160.21766208 # eV/Å³ to GPa
 
+"""
+GLOBAL CONFIGURATION
+"""
 def parse_args():
     """Parse command line arguments for MCP server."""
     parser = argparse.ArgumentParser(description="DPA Calculator MCP Server")
@@ -58,9 +61,11 @@ def parse_args():
 
 
 args = parse_args()
-mcp = CalculationMCPServer("DPACalculatorServer",host=args.host,port=args.port)
+mcp = CalculationMCPServer("DPACalculatorServer", host=args.host, port=args.port)
 
-
+"""
+MCP TOOLS
+"""
 class OptimizationResult(TypedDict):
     """Result structure for structure optimization"""
     optimized_structure: Path
@@ -78,16 +83,12 @@ class PhononResult(TypedDict):
     band_plot: Path
     band_yaml: Path
     band_dat: Path
+    # DOS-related results (optional)
+    total_dos_plot: Optional[Path]
+    total_dos_data: Optional[Path]
+    projected_dos_plot: Optional[Path]
+    projected_dos_data: Optional[Path]
 
-class BuildStructureResult(TypedDict):
-    """Result structure for crystal structure building"""
-    structure_file: Path
-
-class MDResult(TypedDict):
-    """Result of MD simulation"""
-    final_structure: Path
-    trajectory_files: List[Path]
-    log_file: Path
 
 class ElasticResult(TypedDict):
     """Result of elastic constant calculation"""
@@ -97,7 +98,7 @@ class ElasticResult(TypedDict):
 
 class NEBResult(TypedDict):
     """Result of NEB calculation"""
-    neb_energy: float
+    neb_energy: tuple[float, ...]
     neb_traj: Path
 
 
@@ -116,348 +117,21 @@ def _prim2conven(ase_atoms: Atoms) -> Atoms:
     return conven_atoms
 
 
-def _make_supercell(ase_atoms: Atoms, supercell_matrix: list[int] = [3, 3, 3]) -> Atoms:
-    """
-    Generate a supercell from the given ASE Atoms object using the specified repetition matrix.
-
-    Parameters:
-        ase_atoms (Atoms): The original atomic structure (unit cell).
-        supercell_matrix (list[int]): A list of three integers specifying the number of repetitions 
-                                    along each lattice vector direction [nx, ny, nz].
-
-    Returns:
-        Atoms: The resulting supercell as a new ASE Atoms object.
-    """
-    return ase_atoms.repeat(supercell_matrix)
-
-
 @mcp.tool()
-def build_bulk_structure(
-    material: str,
-    conventional: bool = True,
-    crystal_structure: str = 'fcc',
-    a: Optional[float] = None,
-    b: Optional[float] = None,
-    c: Optional[float] = None,
-    alpha: Optional[float] = None,
-    supercell_matrix: list[int] = [1, 1, 1],
-    output_file: str = "structure_bulk.cif"
-) -> BuildStructureResult:
-    """
-    Build a bulk crystal structure using ASE.
-
-    Args:
-        material (str): Element or chemical formula.
-        conventional (bool): If True, convert to conventional standard cell.
-        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a, b, c, alpha: Lattice parameters.
-        supercell_matrix (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
-        output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
-        if conventional:
-            atoms = _prim2conven(atoms)
-        if supercell_matrix != [1, 1, 1]:
-            atoms = _make_supercell(atoms, supercell_matrix)
-        write(output_file, atoms)
-        logging.info(f"Bulk structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Bulk structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Bulk structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_molecule_structure(
-    molecule_name: str,
-    output_file: str = "structure_molecule.xyz"
-) -> BuildStructureResult:
-    """
-    Build a molecule structure using ASE.
-
-    Args:
-        - molecule_name (str): Options are: PH3, P2, CH3CHO, H2COH, CS, OCHCHO, C3H9C, CH3COF, CH3CH2OCH3, HCOOH, HCCl3, HOCl, H2, SH2, C2H2, C4H4NH, CH3SCH3, SiH2_s3B1d, CH3SH, CH3CO, CO, ClF3, SiH4, C2H6CHOH, CH2NHCH2, isobutene, HCO, bicyclobutane, LiF, Si, C2H6, CN, ClNO, S, SiF4, H3CNH2, methylenecyclopropane, CH3CH2OH, F, NaCl, CH3Cl, CH3SiH3, AlF3, C2H3, ClF, PF3, PH2, CH3CN, cyclobutene, CH3ONO, SiH3, C3H6_D3h, CO2, NO, trans-butane, H2CCHCl, LiH, NH2, CH, CH2OCH2, C6H6, CH3CONH2, cyclobutane, H2CCHCN, butadiene, C, H2CO, CH3COOH, HCF3, CH3S, CS2, SiH2_s1A1d, C4H4S, N2H4, OH, CH3OCH3, C5H5N, H2O, HCl, CH2_s1A1d, CH3CH2SH, CH3NO2, Cl, Be, BCl3, C4H4O, Al, CH3O, CH3OH, C3H7Cl, isobutane, Na, CCl4, CH3CH2O, H2CCHF, C3H7, CH3, O3, P, C2H4, NCCN, S2, AlCl3, SiCl4, SiO, C3H4_D2d, H, COF2, 2-butyne, C2H5, BF3, N2O, F2O, SO2, H2CCl2, CF3CN, HCN, C2H6NH, OCS, B, ClO, C3H8, HF, O2, SO, NH, C2F4, NF3, CH2_s3B1d, CH3CH2Cl, CH3COCl, NH3, C3H9N, CF4, C3H6_Cs, Si2H6, HCOOCH3, O, CCH, N, Si2, C2H6SO, C5H8, H2CF2, Li2, CH2SCH2, C2Cl4, C3H4_C3v, CH3COCH3, F2, CH4, SH, H2CCO, CH3CH2NH2, Li, N2, Cl2, H2O2, Na2, BeH, C3H4_C2v, NO2
-        - output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        atoms = molecule(molecule_name)
-        write(output_file, atoms)
-        logging.info(f"Bulk structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Bulk structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Bulk structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_surface_slab(
-    material: Optional[str] = None,
-    material_path: Optional[Path] = None,
-    crystal_structure: str = 'fcc',
-    a: Optional[float] = None,
-    b: Optional[float] = None,
-    c: Optional[float] = None,
-    alpha: Optional[float] = None,
-    supercell_matrix: list[int] = [1, 1, 1],
-    miller_index: List[int] = (1, 0, 0),
-    layers: int = 4,
-    vacuum: float = 10.0,
-    output_file: str = "structure_slab.cif"
-) -> BuildStructureResult:
-    """
-    Build a surface slab structure using ASE.
-
-    Args:
-        material (str): str for chemical formula (e.g. BN)
-        material_path (Path): Path to existing structure file.
-        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a, b, c, alpha: Lattice parameters.
-        supercell_matrix (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
-        miller_index (list of 3 ints): Miller index.
-        layers (int): Number of layers in slab.
-        vacuum (float): Vacuum spacing in Å.
-        output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        if material_path is not None:
-            bulk_atoms = read(str(material_path))
-        else:
-            bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
-        if supercell_matrix != [1, 1, 1]:
-            bulk_atoms = _make_supercell(bulk_atoms, supercell_matrix)
-        slab = surface(bulk_atoms, miller_index, layers, vacuum=vacuum)
-        write(output_file, slab)
-        logging.info(f"Surface structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Surface structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Surface structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_surface_adsorbate(
-    material: Optional[str] = None,
-    adsorbate: Optional[str] = None,
-    material_path: Optional[Path] = None,
-    adsorbate_path: Optional[Path] = None,
-    crystal_structure: str = 'fcc',
-    a: Optional[float] = None,
-    b: Optional[float] = None,
-    c: Optional[float] = None,
-    alpha: Optional[float] = None,
-    miller_index: List[int] = (1, 0, 0),
-    supercell_matrix: list[int] = [1, 1, 1],
-    adsorbate_position: Optional[List[float]] = None, 
-    layers: int = 4,
-    vacuum: float = 10.0,
-    output_file: str = "structure_adsorbate.cif"
-) -> BuildStructureResult:
-    """
-    Build a surface-adsorbate structure using ASE.
-
-    Args:
-        material (str): str for chemical formula (e.g. BN).
-        adsorbate (str): Used for building structures from scratch a string representing a molecule name supported by ASE. Options are: PH3, P2, CH3CHO, H2COH, CS, OCHCHO, C3H9C, CH3COF, CH3CH2OCH3, HCOOH, HCCl3, HOCl, H2, SH2, C2H2, C4H4NH, CH3SCH3, SiH2_s3B1d, CH3SH, CH3CO, CO, ClF3, SiH4, C2H6CHOH, CH2NHCH2, isobutene, HCO, bicyclobutane, LiF, Si, C2H6, CN, ClNO, S, SiF4, H3CNH2, methylenecyclopropane, CH3CH2OH, F, NaCl, CH3Cl, CH3SiH3, AlF3, C2H3, ClF, PF3, PH2, CH3CN, cyclobutene, CH3ONO, SiH3, C3H6_D3h, CO2, NO, trans-butane, H2CCHCl, LiH, NH2, CH, CH2OCH2, C6H6, CH3CONH2, cyclobutane, H2CCHCN, butadiene, C, H2CO, CH3COOH, HCF3, CH3S, CS2, SiH2_s1A1d, C4H4S, N2H4, OH, CH3OCH3, C5H5N, H2O, HCl, CH2_s1A1d, CH3CH2SH, CH3NO2, Cl, Be, BCl3, C4H4O, Al, CH3O, CH3OH, C3H7Cl, isobutane, Na, CCl4, CH3CH2O, H2CCHF, C3H7, CH3, O3, P, C2H4, NCCN, S2, AlCl3, SiCl4, SiO, C3H4_D2d, H, COF2, 2-butyne, C2H5, BF3, N2O, F2O, SO2, H2CCl2, CF3CN, HCN, C2H6NH, OCS, B, ClO, C3H8, HF, O2, SO, NH, C2F4, NF3, CH2_s3B1d, CH3CH2Cl, CH3COCl, NH3, C3H9N, CF4, C3H6_Cs, Si2H6, HCOOCH3, O, CCH, N, Si2, C2H6SO, C5H8, H2CF2, Li2, CH2SCH2, C2Cl4, C3H4_C3v, CH3COCH3, F2, CH4, SH, H2CCO, CH3CH2NH2, Li, N2, Cl2, H2O2, Na2, BeH, C3H4_C2v, NO2.
-        material_path (Path): Path to existing structure file, used for building structures from existing structures.
-        adsorbate_path (Path): Path to existing structure file, used for building structures from existing structures.
-        crystal_structure (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a, b, c, alpha: Lattice parameters.
-        miller_index (list of 3 ints): Miller index.
-        supercell_matrix (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
-        layers (int): Number of layers in slab.
-        vacuum (float): Vacuum spacing in Å.
-        output_file (str): Path to save CIF.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        if material_path is not None:
-            bulk_atoms = read(str(material_path))
-        else:
-            bulk_atoms = bulk(material, crystal_structure, a=a, b=b, c=c, alpha=alpha)
-        if supercell_matrix != [1, 1, 1]:
-            bulk_atoms = _make_supercell(bulk_atoms, supercell_matrix)
-        slab = surface(bulk_atoms, miller_index, layers)
-        slab.center(vacuum=vacuum, axis=2) # z-axis
-        if adsorbate_path is not None:
-            adsorbate_atoms = read(str(adsorbate_path))
-        else:
-            adsorbate_atoms = molecule(adsorbate)
-        
-        # Default adsorbate position: center of surface in x/y, 2 Å above surface
-        if adsorbate_position is None:
-            x = 0.5 * (slab.cell[0][0] + slab.cell[1][0])
-            y = 0.5 * (slab.cell[0][1] + slab.cell[1][1])
-            height = max(slab.positions[:, 2]) + 2.0
-        else:
-            if len(adsorbate_position) != 3:
-                raise ValueError("adsorbate_position must be a list of 3 floats: [x, y, height]")
-            x, y, height = adsorbate_position
-
-        add_adsorbate(slab, adsorbate_atoms, height=height, position=(x, y))
-        slab.center(vacuum=vacuum, axis=2)
-
-        write(output_file, slab)
-        logging.info(f"Surface-adsorbate structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Surface structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Surface structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def build_surface_interface(
-    material1: Optional[str] = None,
-    material2: Optional[str] = None,
-    material1_path: Optional[Path] = None,
-    material2_path: Optional[Path] = None,
-    crystal_structure1: str = 'fcc',
-    crystal_structure2: str = 'fcc',
-    a1: Optional[float] = None,
-    b1: Optional[float] = None,
-    c1: Optional[float] = None,
-    alpha1: Optional[float] = None,
-    a2: Optional[float] = None,
-    b2: Optional[float] = None,
-    c2: Optional[float] = None,
-    alpha2: Optional[float] = None,
-    miller_index1: List[int] = (1, 0, 0),
-    miller_index2: List[int] = (1, 0, 0),
-    supercell_matrix1: list[int] = [1, 1, 1],
-    supercell_matrix2: list[int] = [1, 1, 1],
-    layers1: int = 4,
-    layers2: int = 3,
-    vacuum1: float = 10.0,
-    vacuum2: float = 10.0,
-    stack_axis: int = 2,
-    interface_distance: float = 2.5,
-    conventional: bool = True,
-    max_strain: float = 0.05,
-    output_file: str = "structure_interface.cif"
-) -> BuildStructureResult:
-    """
-    Build an interface structure between two materials.
-
-    Args:
-        material1/2 (str): str for chemical formula (e.g. BN), used for building structures from scratch.
-        material1_path/2_path (Path): Path to existing structure file, used for building structures from existing structures.
-        crystal_structure1/2 (str): Crystal structure type for material1. Must be one of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic, mcl, diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite. Default 'fcc'.
-        a1, b1, c1, alpha1; a2, b2, c2, alpha2: Lattice constants.
-        miller_index1/2: Miller indices for surfaces.
-        supercell_matrix1/2 (list[int], optional): matrix for supercell expansion.
-            Defaults to [1, 1, 1], i.e. no supercell.
-        layers1/2: Number of layers.
-        vacuum1/2: Vacuum spacing.
-        stack_axis: Stacking direction (0=x,1=y,2=z).
-        interface_distance: Distance between surfaces.
-        conventional: Whether to convert to conventional cells.
-        max_strain: Allowed lattice mismatch.
-        output_file: Output CIF path.
-
-    Returns:
-        dict with structure_file (Path)
-    """
-    try:
-        if material1_path is not None:
-            bulk1 = read(str(material1_path))
-        else:
-            bulk1 = bulk(material1, crystal_structure1, a=a1, b=b1, c=c1, alpha=alpha1)
-        if material2_path is not None:
-            bulk2 = read(str(material2_path))
-        else:
-            bulk2 = bulk(material2, crystal_structure2, a=a2, b=b2, c=c2, alpha=alpha2)
-        if conventional:
-            bulk1 = _prim2conven(bulk1)
-            bulk2 = _prim2conven(bulk2)
-        if supercell_matrix1 != [1, 1, 1]:
-            bulk1 = _make_supercell(bulk1, supercell_matrix1)
-        if supercell_matrix2 != [1, 1, 1]:
-            bulk2 = _make_supercell(bulk2, supercell_matrix2)
-        surf1 = surface(bulk1, miller_index1, layers1)
-        surf2 = surface(bulk2, miller_index2, layers2)
-
-        axes = [0, 1, 2]
-        axes.remove(stack_axis)
-        axis1, axis2 = axes
-
-        len1_a = np.linalg.norm(surf1.cell[axis1])
-        len1_b = np.linalg.norm(surf1.cell[axis2])
-        len2_a = np.linalg.norm(surf2.cell[axis1])
-        len2_b = np.linalg.norm(surf2.cell[axis2])
-        strain_a = abs(len1_a - len2_a) / ((len1_a + len2_a) / 2)
-        strain_b = abs(len1_b - len2_b) / ((len1_b + len2_b) / 2)
-
-        if strain_a > max_strain or strain_b > max_strain:
-            raise ValueError(f"Lattice mismatch too large: strain_a={strain_a:.3f}, strain_b={strain_b:.3f}")
-
-        scale_a = len1_a / len2_a
-        scale_b = len1_b / len2_b
-        new_cell2 = surf2.cell.copy()
-        new_cell2[axis1] *= scale_a
-        new_cell2[axis2] *= scale_b
-        surf2.set_cell(new_cell2, scale_atoms=True)
-
-        max1 = max(surf1.positions[:, stack_axis])
-        min2 = min(surf2.positions[:, stack_axis])
-        shift = max1 - min2 + interface_distance
-        surf2.positions[:, stack_axis] += shift
-
-        atoms = surf1 + surf2
-        atoms.center(vacuum=vacuum1 + vacuum2, axis=stack_axis)
-
-        write(output_file, atoms)
-        logging.info(f"Interface structure saved to: {output_file}")
-        return {"structure_file": Path(output_file)}
-    except Exception as e:
-        logging.error(f"Interface structure building failed: {str(e)}", exc_info=True)
-        return {
-            "structure_file": Path(""), 
-            "message": f"Interface structure building failed: {str(e)}"
-        }
-
-
-@mcp.tool()
-def optimize_crystal_structure( 
+def optimize_structure( 
     input_structure: Path,
     model_path: Path,
-    head: str = "Omat24",
+    head: Optional[str] = "Omat24",
     force_tolerance: float = 0.01, 
     max_iterations: int = 100, 
     relax_cell: bool = False,
 ) -> OptimizationResult:
-    # TODO: RELAX CELL
     """Optimize crystal structure using a Deep Potential (DP) model.
 
     Args:
         input_structure (Path): Path to the input structure file (e.g., CIF, POSCAR).
         model_path (Path): Path to the trained Deep Potential model directory.
-            Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+            Default options are {'DPA2.4-7M': "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", "DPA3.1-3M": "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/18b8f35e-69f5-47de-92ef-af8ef2c13f54/DPA-3.1-3M.pt"}.
         head (str, optional): Model head corresponding to the application domain. Options are:
             - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
             and molecular fragments in aqueous or biological environments.
@@ -469,6 +143,7 @@ def optimize_crystal_structure(
             adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
             - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
             and energy profiling of organic chemical transformations.
+            - 'ODAC23' : For **metal-organic framework (MOF)** and its direct air capture research, might be suitable for other organic-inorganic hybrid materials.
             Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
         force_tolerance (float, optional): Convergence threshold for atomic forces in eV/Å.
             Default is 0.01 eV/Å.
@@ -491,7 +166,10 @@ def optimize_crystal_structure(
         
         logging.info(f"Reading structure from: {input_structure}")
         atoms = read(str(input_structure))
-        atoms.calc = DP(model=model_file, head=head)
+        if model_file.endswith(".pt") or model_file.endswith(".pth"):
+            atoms.calc = DP(model=model_file, head=head)
+        else:
+            atoms.calc = DP(model=model_file)
 
         traj_file = f"{base_name}_optimization_traj.extxyz"  
         if Path(traj_file).exists():
@@ -511,7 +189,7 @@ def optimize_crystal_structure(
 
         output_file = f"{base_name}_optimized.cif"
         write(output_file, atoms)
-        final_energy = atoms.get_potential_energy()
+        final_energy = float(atoms.get_potential_energy())
 
         logging.info(
             f"Optimization completed in {optimizer.nsteps} steps. "
@@ -537,40 +215,52 @@ def optimize_crystal_structure(
 
 @mcp.tool()
 def calculate_phonon(
-    cif_file: Path,
+    input_structure: Path,
     model_path: Path,
-    head: str = "Omat24",
-    supercell_matrix: list[int] = [2, 2, 2],
+    head: Optional[str] = "Omat24",
     displacement_distance: float = 0.005,
     temperatures: tuple = (300,),
-    plot_path: str = "phonon_band.png"
+    plot_path: str = "phonon_band.png",
+    calc_tdos: bool = False,
+    calc_pdos: bool = False,
+    mesh_density: int = 40,
+    gaussian_sigma: Optional[float] = None
 ) -> PhononResult:
     """Calculate phonon properties using a Deep Potential (DP) model.
 
-        Args:
-            cif_file (Path): Path to the input CIF structure file.
-            model_path (Path): Path to the Deep Potential model file.
-                Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
-            head (str, optional): Model head corresponding to the application domain. Options are:
-                - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
-                and molecular fragments in aqueous or biological environments.
-                - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
-                and other extended solid-state systems. (This is the **default** head.)
-                - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
-                and general organic chemistry structures.
-                - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
-                adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
-                - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
-                and energy profiling of organic chemical transformations.
-                Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
-            supercell_matrix (list[int], optional): 2×2×2 matrix for supercell expansion.
-                Defaults to [2, 2, 2].
-            displacement_distance (float, optional): Atomic displacement distance in Ångström.
-                Default is 0.005 Å.
-            temperatures (tuple, optional): Tuple of temperatures (in Kelvin) for thermal property calculations.
-                Default is (300,).
-            plot_path (str, optional): File path to save the phonon band structure plot.
-                Default is "phonon_band.png".
+    Args:
+        input_structure (Path): Path to the input CIF structure file.
+        model_path (Path): Path to the Deep Potential model file.
+            Default options are {'DPA2.4-7M': "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", "DPA3.1-3M": "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/18b8f35e-69f5-47de-92ef-af8ef2c13f54/DPA-3.1-3M.pt"}.
+        head (str, optional): Model head corresponding to the application domain. Options are:
+            - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
+            and molecular fragments in aqueous or biological environments.
+            - 'Omat24' : For **inorganic crystalline materials**, including oxides, metals, ceramics, 
+            and other extended solid-state systems. (This is the **default** head.)
+            - 'SPICE2' : For **organic small molecules**, including drug-like compounds, ligands, 
+            and general organic chemistry structures.
+            - 'OC22' : For **interface and heterogeneous catalysis systems**, such as surfaces, 
+            adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
+            - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
+            and energy profiling of organic chemical transformations.
+            - 'ODAC23' : For **metal-organic framework (MOF)** and its direct air capture research, might be suitable for other organic-inorganic hybrid materials.
+            Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
+        displacement_distance (float, optional): Atomic displacement distance in Ångström.
+            Default is 0.005 Å.
+        temperatures (tuple, optional): Tuple of temperatures (in Kelvin) for thermal property calculations.
+            Default is (300,).
+        plot_path (str, optional): File path to save the phonon band structure plot.
+            Default is "phonon_band.png".
+        calc_tdos (bool, optional): Whether to calculate total density of states.
+            Default is False.
+        calc_pdos (bool, optional): Whether to calculate projected density of states.
+            Default is False.
+        mesh_density (int, optional): Density of the q-point mesh for DOS calculations.
+            Higher values result in more accurate DOS but longer computation time.
+            Default is 40.
+        gaussian_sigma (float, optional): Sigma value for Gaussian smearing in DOS calculation.
+            If None, adaptive smearing is used.
+            Default is None.
 
     Returns:
         dict: A dictionary containing phonon properties:
@@ -582,14 +272,15 @@ def calculate_phonon(
             - band_plot (str): File path to the generated band structure plot.
             - band_yaml (str): File path to the band structure data in YAML format.
             - band_dat (str): File path to the band structure data in DAT format.
+            - total_dos_plot (Optional[Path]): File path to the total DOS plot (if calc_tdos=True).
+            - total_dos_data (Optional[Path]): File path to the total DOS data (if calc_tdos=True).
+            - projected_dos_plot (Optional[Path]): File path to the projected DOS plot (if calc_pdos=True).
+            - projected_dos_data (Optional[Path]): File path to the projected DOS data (if calc_pdos=True).
     """
-
-    if supercell_matrix is None or len(supercell_matrix) == 0:
-        supercell_matrix = [2, 2, 2]
 
     try:
         # Read input files
-        atoms = io.read(str(cif_file))
+        atoms = io.read(str(input_structure))
         
         # Convert to Phonopy structure
         ph_atoms = PhonopyAtoms(
@@ -599,11 +290,15 @@ def calculate_phonon(
         )
         
         # Setup phonon calculation
-        phonon = Phonopy(ph_atoms, supercell_matrix)
+        phonon = Phonopy(ph_atoms, [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
         phonon.generate_displacements(distance=displacement_distance)
         
         # Calculate forces using DP model
-        dp_calc = DP(model=str(model_path), head=head)
+        model_file = str(model_path)
+        if model_file.endswith(".pt") or model_file.endswith(".pth"):
+            dp_calc = DP(model=model_file, head=head)
+        else:
+            dp_calc = DP(model=model_file)
         
         force_sets = []
         for sc in phonon.supercells_with_displacements:
@@ -642,6 +337,38 @@ def calculate_phonon(
 
         plot = phonon.plot_band_structure()
         plot.savefig(plot_path, dpi=300)
+        
+        # Initialize DOS-related results as None
+        total_dos_plot = None
+        total_dos_data = None
+        projected_dos_plot = None
+        projected_dos_data = None
+
+        # Calculate DOS if requested
+        if calc_tdos or calc_pdos:
+            # Run mesh calculation with higher density for better DOS
+            mesh_size = [mesh_density, mesh_density, mesh_density]
+            phonon.run_mesh(mesh_size, with_eigenvectors=calc_pdos, is_mesh_symmetry=False)
+            
+            if calc_tdos:
+                # Calculate and save total DOS
+                phonon.run_total_dos(sigma=gaussian_sigma)
+                total_dos_plot = base_path.with_name(base_path.name + "_tdos.png")
+                total_dos_data = base_path.with_name(base_path.name + "_tdos.dat")
+                
+                tdos_plot = phonon.plot_total_dos()
+                tdos_plot.savefig(total_dos_plot, dpi=300)
+                phonon.write_total_dos(filename=str(total_dos_data))
+            
+            if calc_pdos:
+                # Calculate and save projected DOS
+                phonon.run_projected_dos(sigma=gaussian_sigma)
+                projected_dos_plot = base_path.with_name(base_path.name + "_pdos.png")
+                projected_dos_data = base_path.with_name(base_path.name + "_pdos.dat")
+                
+                pdos_plot = phonon.plot_projected_dos()
+                pdos_plot.savefig(projected_dos_plot, dpi=300)
+                phonon.write_projected_dos(filename=str(projected_dos_data))
 
 
         return {
@@ -652,7 +379,11 @@ def calculate_phonon(
             "max_frequency_K": float(np.max(freqs) * THz_TO_K),
             "band_plot": Path(plot_path),
             "band_yaml": band_yaml_path,
-            "band_dat": band_dat_path
+            "band_dat": band_dat_path,
+            "total_dos_plot": total_dos_plot,
+            "total_dos_data": total_dos_data,
+            "projected_dos_plot": projected_dos_plot,
+            "projected_dos_data": projected_dos_data
         }
         
     except Exception as e:
@@ -666,6 +397,10 @@ def calculate_phonon(
             "band_plot": Path(""),
             "band_yaml": Path(""),
             "band_dat": Path(""),
+            "total_dos_plot": None,
+            "total_dos_data": None,
+            "projected_dos_plot": None,
+            "projected_dos_data": None,
             "message": f"Calculation failed: {str(e)}"
         }
 
@@ -704,7 +439,7 @@ def _run_md_stage(atoms, stage, save_interval_steps, traj_file, seed, stage_id):
             atoms,
             timestep=timestep_fs * units.fs,
             temperature_K=temperature_K,
-            chain_length=stage.get('chain_length', 3) 
+            tdamp=tau_t_ps * 1000 * units.fs
         )
     elif mode == 'NVT-Berendsen':
         dyn = NVTBerendsen(
@@ -775,7 +510,10 @@ def _run_md_stage(atoms, stage, save_interval_steps, traj_file, seed, stage_id):
         new_atoms = atoms.copy()
         new_atoms.info["energy"] = energy
         new_atoms.arrays["force"] = forces
-        new_atoms.info["virial"] = -stress * atoms.get_volume()
+        if "occupancy" in atoms.info:
+            del atoms.info["occupancy"]
+        if "spacegroup" in atoms.info:
+            del atoms.info["spacegroup"] 
 
         write(traj_file, new_atoms, format="extxyz", append=True)
 
@@ -826,8 +564,8 @@ def run_molecular_dynamics(
     save_interval_steps: int = 100,
     traj_prefix: str = 'traj',
     seed: Optional[int] = 42,
-    head: str = "Omat24",
-) -> MDResult:
+    head: Optional[str] = "Omat24",
+) -> Dict:
     """
     Run a multi-stage molecular dynamics simulation using Deep Potential.
 
@@ -837,6 +575,7 @@ def run_molecular_dynamics(
     Args:
         initial_structure (Path): Input atomic structure file (supports .xyz, .cif, etc.)
         model_path (Path): Path to the Deep Potential model file (.pt or .pb)
+            Default options are {'DPA2.4-7M': "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", "DPA3.1-3M": "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/18b8f35e-69f5-47de-92ef-af8ef2c13f54/DPA-3.1-3M.pt"}.
         stages (List[Dict]): List of simulation stages. Each dictionary can contain:
             - mode (str): Simulation ensemble type. One of:
                 * "NVT" or "NVT-NH"- NVT ensemble (constant Particle Number, Volume, Temperature), with Nosé-Hoover (NH) chain thermostat
@@ -866,12 +605,12 @@ def run_molecular_dynamics(
             adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
             - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
             and energy profiling of organic chemical transformations.
+            - 'ODAC23' : For **metal-organic framework (MOF)** and its direct air capture research, might be suitable for other organic-inorganic hybrid materials.
             Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
 
-    Returns:
-        MDResult: A dictionary containing:
+    Returns: A dictionary containing:
             - final_structure (Path): Final atomic structure after all stages.
-            - trajectory_files (List[Path]): List of trajectory files generated, one per stage.
+            - trajectory_dir (Path): The path of output directory of trajectory files generated.
             - log_file (Path): Path to the log file containing simulation output.
 
     Examples:
@@ -917,7 +656,11 @@ def run_molecular_dynamics(
     atoms = read(initial_structure)
     
     # Setup calculator
-    model = DP(model=str(model_path), head=head)
+    model_file = str(model_path)
+    if model_file.endswith(".pt") or model_file.endswith(".pth"):
+        model = DP(model=model_file, head=head)
+    else:
+        model = DP(model=model_file)
     atoms.calc = model
     
     # Run MD pipeline
@@ -934,13 +677,27 @@ def run_molecular_dynamics(
     write(final_structure, final_atoms)
     
     # Collect trajectory files
-    trajectory_files = [Path(f) for f in glob.glob(f"trajs_files/{traj_prefix}_*.extxyz")]
+    trajectory_dir = Path("trajs_files")
     
-    return {
+    result = {
         "final_structure": final_structure,
-        "trajectory_files": trajectory_files,
+        "trajectory_dir": trajectory_dir,
         "log_file": log_file
     }
+    
+    for i, stage in enumerate(stages):
+        mode = stage['mode']
+        T = stage.get('temperature_K', 'NA')
+        P = stage.get('pressure', 'NA')
+
+        tag = f"stage{i+1}_{mode}_{T}K"
+        if P != 'NA':
+            tag += f"_{P}GPa"
+        traj_file = os.path.join("trajs_files", f"{traj_prefix}_{tag}.extxyz")
+        
+        result[f"stage_{i+1}"] = Path(traj_file)
+    
+    return result
 
 
 """
@@ -1006,9 +763,9 @@ def _get_elastic_tensor_from_strains(
 
 @mcp.tool()
 def calculate_elastic_constants(
-    cif_file: Path,
+    input_structure: Path,
     model_path: Path,
-    head: str = "Omat24",
+    head: Optional[str] = "Omat24",
     norm_strains: np.typing.ArrayLike = np.linspace(-0.01, 0.01, 4),
     norm_shear_strains: np.typing.ArrayLike = np.linspace(-0.06, 0.06, 4),
 ) -> ElasticResult:
@@ -1016,9 +773,9 @@ def calculate_elastic_constants(
     Calculate elastic constants for a fully relaxed crystal structure using a Deep Potential model.
 
     Args:
-        cif_file (Path): Path to the input CIF file of the fully relaxed structure.
+        input_structure (Path): Path to the input CIF file of the fully relaxed structure.
         model_path (Path): Path to the Deep Potential model file.
-            Default is "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", i.e. the DPA-2.4-7M.
+            Default options are {'DPA2.4-7M': "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", "DPA3.1-3M": "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/18b8f35e-69f5-47de-92ef-af8ef2c13f54/DPA-3.1-3M.pt"}.
         head (str, optional): Model head corresponding to the application domain. Options are:
             - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
             and molecular fragments in aqueous or biological environments.
@@ -1030,6 +787,7 @@ def calculate_elastic_constants(
             adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
             - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
             and energy profiling of organic chemical transformations.
+            - 'ODAC23' : For **metal-organic framework (MOF)** and its direct air capture research, might be suitable for other organic-inorganic hybrid materials.
             Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
         norm_strains (ArrayLike): strain values to apply to each normal mode.
             Default is np.linspace(-0.01, 0.01, 4).
@@ -1045,9 +803,12 @@ def calculate_elastic_constants(
     """
     try:
         # Read input files
-        relaxed_atoms = read(str(cif_file))
+        relaxed_atoms = read(str(input_structure))
         model_file = str(model_path)
-        calc = DP(model=model_file, head=head)
+        if model_file.endswith(".pt") or model_file.endswith(".pth"):
+            calc = DP(model=model_file, head=head)
+        else:
+            calc = DP(model=model_file)
         
         structure = AseAtomsAdaptor.get_structure(relaxed_atoms)
 
@@ -1083,9 +844,9 @@ def calculate_elastic_constants(
         youngs_modulus = 9 * bulk_modulus * shear_modulus / (3 * bulk_modulus + shear_modulus)
         
         return {
-            "bulk_modulus": bulk_modulus,
-            "shear_modulus": shear_modulus,
-            "youngs_modulus": youngs_modulus
+            "bulk_modulus": float(bulk_modulus),
+            "shear_modulus": float(shear_modulus),
+            "youngs_modulus": float(youngs_modulus)
         }
     except Exception as e:
         logging.error(f"Elastic calculation failed: {str(e)}", exc_info=True)
@@ -1101,7 +862,7 @@ def run_neb(
     initial_structure: Path,
     final_structure: Path,
     model_path: Path,
-    head: str = "Omat24",
+    head: Optional[str] = "Omat24",
     n_images: int = 5,
     max_force: float = 0.05,
     max_steps: int = 500
@@ -1113,6 +874,7 @@ def run_neb(
         initial_structure (Path): Path to the initial structure file.
         final_structure (Path): Path to the final structure file.
         model_path (Path): Path to the Deep Potential model file.
+            Default options are {'DPA2.4-7M': "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/cd12300a-d3e6-4de9-9783-dd9899376cae/dpa-2.4-7M.pt", "DPA3.1-3M": "https://bohrium.oss-cn-zhangjiakou.aliyuncs.com/13756/27666/store/upload/18b8f35e-69f5-47de-92ef-af8ef2c13f54/DPA-3.1-3M.pt"}.
         head (str, optional): Model head corresponding to the application domain. Options are:
             - 'solvated_protein_fragments' : For **biomolecular systems**, such as proteins, peptides, 
             and molecular fragments in aqueous or biological environments.
@@ -1124,6 +886,7 @@ def run_neb(
             adsorbates, and catalytic reactions involving solid-liquid or solid-gas interfaces.
             - 'Organic_Reactions' : For **organic reaction prediction**, transition state modeling, 
             and energy profiling of organic chemical transformations.
+            - 'ODAC23' : For **metal-organic framework (MOF)** and its direct air capture research, might be suitable for other organic-inorganic hybrid materials.
             Default is 'Omat24', which is suitable for most inorganic materials and crystalline solids.
         n_images (int): Number of images inserted between the initial and final structure in the NEB chain. Default is 5.
         max_force (float): Maximum force tolerance for convergence in eV/Å. Default is 0.05 eV/Å.
@@ -1131,12 +894,15 @@ def run_neb(
 
     Returns:
         dict: A dictionary containing:
-            - energy_barrier (float): Energy barrier in eV.
+            - neb_energy (tuple): Energy barrier in eV.
             - neb_traj (Path): Path to the NEB band as a PDF file.
     """
     try:
         model_file = str(model_path)
-        calc = DP(model=model_file, head=head)
+        if model_file.endswith(".pt") or model_file.endswith(".pth"):
+            calc = DP(model=model_file, head=head)
+        else:
+            calc = DP(model=model_file)
 
         # Read structures
         initial_atoms = read(str(initial_structure))
@@ -1160,10 +926,11 @@ def run_neb(
             conv = opt.run(fmax=max_force, steps=max_steps)
         neb_tool = NEBTools(neb.images)
         energy_barrier = neb_tool.get_barrier()
-        neb_tool.plot_bands("neb_band.pdf")
+        output_label = "neb_band"
+        neb_tool.plot_bands(label=output_label)
         return {
-            "energy_barrier": energy_barrier,
-            "neb_traj": Path("neb_band.pdf")
+            "neb_energy": energy_barrier,
+            "neb_traj": Path(f"{output_label}.pdf")
         }
 
     except Exception as e:
@@ -1175,4 +942,6 @@ def run_neb(
     
 if __name__ == "__main__":
     logging.info("Starting Unified MCP Server with all tools...")
-    mcp.run(transport="sse")
+    # Get transport type from environment variable, default to SSE
+    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
+    mcp.run(transport=transport_type)

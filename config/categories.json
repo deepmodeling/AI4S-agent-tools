@@ -53,6 +53,24 @@
       "icon": "🛠️",
       "description": "General purpose scientific utilities",
       "color": "#795548"
+    },
+    "battery": {
+      "name": "Battery",
+      "icon": "🔋",
+      "description": "Battery modeling, analysis and energy storage systems",
+      "color": "#FFC107"
+    },
+    "climate": {
+      "name": "Climate",
+      "icon": "🌍",
+      "description": "Climate modeling, weather prediction and atmospheric sciences",
+      "color": "#00ACC1"
+    },
+    "medicine": {
+      "name": "Medicine",
+      "icon": "⚕️",
+      "description": "Medical research, drug discovery and healthcare applications",
+      "color": "#D32F2F"
     }
   },
   "default_category": "general"

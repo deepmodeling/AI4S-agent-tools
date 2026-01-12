@@ -1,0 +1,9 @@
+{
+    "name": "data_analysis",
+    "description": "A simplified tool for data analysis",
+    "author": "@nlz25",
+    "category": "data",
+    "tools": [
+        "analyze_csv_data"
+    ]
+}

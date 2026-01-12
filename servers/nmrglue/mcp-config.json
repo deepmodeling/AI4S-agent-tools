@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "NMRglue Toolkit": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/nmrglue",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "NMRglue Toolkit",
+        "description": "NMR data processing and analysis toolkit using nmrglue library for reading, processing, and visualizing NMR spectroscopy data",
+        "author": "@jiaodu1307",
+        "category": "chemistry",
+        "transport": [
+          "sse",
+          "stdio"
+        ]
+      }
+    }
+  }
+}

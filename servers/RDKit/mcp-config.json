@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "RDKit Toolkit": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "servers/RDKit",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      },
+      "metadata": {
+        "name": "RDKit Toolkit",
+        "description": "Provides fundamental cheminformatics capabilities like molecule handling, descriptor calculation, and visualization.",
+        "author": "@AI4S-community",
+        "category": "chemistry"
+      }
+    }
+  }
+}
