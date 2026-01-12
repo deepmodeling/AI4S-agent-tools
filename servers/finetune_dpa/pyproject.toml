@@ -1,0 +1,16 @@
+[project]
+name = "superconductor-mcp-server"
+version = "0.1.0"
+description = "Superconductor critical temperature prediction"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dpdata",
+    "numpy",
+    "ase",
+    "pymatgen",
+    "deepmd-kit",
+    "pandas",
+    "mcp",
+    "fastmcp"
+]
