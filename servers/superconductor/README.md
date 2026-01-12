@@ -1,4 +1,4 @@
-# ThermoelectricMCP Server
+# SuperconductorMCP Server
 
 A tool to predict supercondutor related properties and screen promising supercondutors.
 

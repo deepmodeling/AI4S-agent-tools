@@ -36,39 +36,17 @@ import pandas as pd
 import json
 import csv
 
-import argparse
-
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-def parse_args():
-    """Parse command line arguments for MCP server."""
-    parser = argparse.ArgumentParser(description="DPA Calculator MCP Server")
-    parser.add_argument('--port', type=int, default=50001, help='Server port (default: 50001)')
-    parser.add_argument('--host', default='0.0.0.0', help='Server host (default: 0.0.0.0)')
-    parser.add_argument('--log-level', default='INFO', 
-                       choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-                       help='Logging level (default: INFO)')
-    try:
-        args = parser.parse_args()
-    except SystemExit:
-        class Args:
-            port = 50001
-            host = '0.0.0.0'
-            log_level = 'INFO'
-        args = Args()
-    return args
-
-args = parse_args()
-
 # Initialize MCP server
 mcp = CalculationMCPServer(
     "ThermoelectricMaterialsServer",
-    host=args.host,
-    port=args.port
+    host="0.0.0.0",
+    port=50001
 )
 
 # ====== Tool 1: Predict Material Thermoelectronic Properties ======
@@ -185,12 +163,18 @@ def predict_thermoelectric_properties(
         #Define props for atom
         results: MaterialData = {}
         props_results: MaterialProperties = {}
-
+     
         structure_file = Path(structure_file)
         if not structure_file.exists():
             return {"results": {}, "properties": {}, "message": f"Structure file not found: {structure_file}"}
 
-        structures = sorted(structure_file.rglob("POSCAR*")) + sorted(structure_file.rglob("*.cif"))
+        fmax=0.0005
+        nsteps = 2000
+        pressure = 0.0
+        result = run_pressure_optimization(structure_file,fmax,nsteps,pressure)
+        optimized_structure_path = result["optimized_poscar_paths"]
+
+        structures = list(optimized_structure_path.rglob("POSCAR*")) 
         for structure in structures:
             try:
                if structure.name.upper().startswith("POSCAR"):
@@ -328,261 +312,371 @@ ELEMENT_PROPS = {
 
 #========== Tool generate calypso structures ===========
 
-@mcp.tool()
-def generate_calypso_structures(
-       species: List[str], 
-       n_tot: int
-    )->GenerateCalypsoStructureResult:
-    """
-    Generate n_tot CALYPSO structures using specified species.
-    If user did not mention species and total number structures to generate, please remind the user to provide these information.
+#@mcp.tool()
+#def generate_calypso_thermoele_structures(
+#       species: List[str], 
+#       n_tot: int
+#    )->GenerateCalypsoStructureResult:
+#    """
+#    Generate n_tot CALYPSO structures using specified species.
+#    If user did not mention species and total number structures to generate, please remind the user to provide these information.
+#
+#    Args:
+#        species (List[str]): A list of chemical element symbols (e.g., ["Mg", "O", "Si"]). These elements will be used as building blocks in the CALYPSO structure generation.
+#                             All element symbols must be from the supported element list internally defined in the tool.
+#    
+#        n_tot (int): The number of CALYPSO structure configurations to generate. Each structure will be generated in a separate subdirectory (e.g., generated_calypso/0/, generated_calypso/1/, etc.)
+#    Return:
+#        GenerateCalypsoStructureResult with keys:
+#          - poscar_paths (Path): Path to access generated structures POSCAR. All structures are saved in outputs/poscars_for_optimization/
+#          - message (str): Message about calculation results information.
+#    """
+#
+#    def get_props(s_list):
+#        """
+#        Get atomic number, atomic radius, and atomic volume infomation for interested species
+#
+#        Args:
+#           s_list: species list needed to get atomic number, atomic radius, and atomic volume infomation
+#
+#        Return:
+#           z_list (List): atomic number list for given species list,
+#           r_list (List): atomic radius list for given species list,
+#           v_list (List): atomic volume list for given species list.
+#        """
+#
+#        z_list, r_list, v_list = [], [], []
+#        for s in s_list:
+#            if s not in ELEMENT_PROPS:
+#                raise ValueError(f"Unsupported element: {s}")
+#            props = ELEMENT_PROPS[s]
+#            z_list.append(props["Z"])
+#            r_list.append(props["r"])
+#            v_list.append(props["v"])
+#        return z_list, r_list, v_list
+#
+#    def generate_counts(n):
+#        return [random.randint(1, 10) for _ in range(n)]
+#   
+#    def write_input(path, species, z_list, n_list, r_mat, volume):
+#        """
+#        Write calypso input files for given species combination with atomic number, number of each species, radius matrix and total volume
+#
+#        Args:
+#          - path (Path): Path to save input file,
+#          - species (List[str]): Species list
+#          - z_list (List[int]): atomic number list
+#          - n_list (List[int]): number of each species list
+#          - r_mat: radius matrix
+#          - volume (float): total volume
+#        """
+#
+#        # Step 1: reorder all based on atomic number
+#        sorted_indices = sorted(range(len(z_list)), key=lambda i: z_list[i])
+#        species = [species[i] for i in sorted_indices]
+#        z_list = [z_list[i] for i in sorted_indices]
+#        n_list = [n_list[i] for i in sorted_indices]
+#        r_mat = r_mat[np.ix_(sorted_indices, sorted_indices)]  # reorder matrix
+#    
+#        # Step 2: write input.dat
+#        with open(path / "input.dat", "w") as f:
+#            f.write(f"SystemName = {' '.join(species)}\n")
+#            f.write(f"NumberOfSpecies = {len(species)}\n")
+#            f.write(f"NameOfAtoms = {' '.join(species)}\n")
+#            f.write("@DistanceOfIon\n")
+#            for i in range(len(species)):
+#                row = " ".join(f"{r_mat[i][j]:.3f}" for j in range(len(species)))
+#                f.write(row + "\n")
+#            f.write("@End\n")
+#            f.write(f"Volume = {volume:.2f}\n")
+#            f.write(f"AtomicNumber = {' '.join(str(z) for z in z_list)}\n")
+#            f.write(f"NumberOfAtoms = {' '.join(str(n) for n in n_list)}\n")
+#            f.write("""Ialgo = 2
+#PsoRatio = 0.5
+#PopSize = 1
+#GenType = 1
+#ICode = 15
+#NumberOfLbest = 4
+#NumberOfLocalOptim = 3
+#Command = sh submit.sh
+#MaxTime = 9000
+#MaxStep = 1
+#PickUp = F
+#PickStep = 1
+#Parallel = F
+#NumberOfParallel = 4
+#Split = T
+#PSTRESS = 2000
+#fmax = 0.01
+#FixCell = F
+#""")
+#
+#
+# 
+#    #===== Step 1: Generate calypso input files ==========
+#    outdir = Path("generated_calypso")
+#    outdir.mkdir(parents=True, exist_ok=True)
+#
+#    
+#    z_list, r_list, v_list = get_props(species)
+#    for i in range(n_tot):
+#        try:
+#           n_list = generate_counts(len(species))
+#           volume = sum(n * v for n, v in zip(n_list, v_list))
+#           r_mat = np.add.outer(r_list, r_list) * 0.529  # bohr → Å
+#           
+#           struct_dir = outdir / f"{i}"
+#           if not struct_dir.exists():
+#              struct_dir.mkdir(parents=True, exist_ok=True)
+#
+#           #Prepare calypso input.dat
+#           write_input(struct_dir, species, z_list, n_list, r_mat, volume)
+#        except Exception as e:
+#           return{
+#             "poscar_paths" : None,
+#             "message": "Input files generations for calypso failed!" 
+#           }
+#
+#        #Execuate calypso calculation and screening
+#        flim_ase_path = Path("/opt/agents/thermal_properties/flim_ase/flim_ase.py")
+#        command = f"/opt/agents/thermal_properties/calypso/calypso.x >> tmp_log && python {flim_ase_path}"
+#        if not flim_ase_path.exists():
+#           return{
+#             "poscar_paths": None,
+#             "message": "flim_ase.py did not found!"
+#   
+#           }
+#        try:
+#           subprocess.run(command, cwd=struct_dir, shell=True)
+#        except Exception as e:
+#           return{
+#             "poscar_paths": None,
+#             "message": "calypso.x execute failed!"
+#           }
+#
+#        #Clean struct_dir only save input.dat and POSCAR_1
+#        for file in struct_dir.iterdir():
+#            if file.name not in ["input.dat", "POSCAR_1"]:
+#                if file.is_file():
+#                    file.unlink()
+#                elif file.is_dir():
+#                    shutil.rmtree(file)
+#
+#    # Step 3: Collect POSCAR_1 into POSCAR_n format
+#    try:
+#       output_dir = Path("outputs")
+#       output_dir.mkdir(parents=True, exist_ok=True)
+#       final_dir = output_dir / "poscars_for_optimization"
+#       final_dir.mkdir(parents=True, exist_ok=True)
+#       counter = 0
+#       for struct_dir in outdir.iterdir():
+#           poscar_path = struct_dir / "POSCAR_1"
+#           if poscar_path.exists():
+#               new_name = final_dir / f"POSCAR_{counter}"
+#               shutil.copy(poscar_path, new_name)
+#               counter += 1
+#       
+#       return{
+#         "poscar_paths": Path(final_dir),
+#         "message": f"Calypso generated {n_tot} structures with {species} successfully!"
+#       }
+#    except Exception as e:
+#       return{
+#         "poscar_paths": None,
+#         "message": "Calypso generated POSCAR files collected failed!"
+#       }
 
-    Args:
-        species (List[str]): A list of chemical element symbols (e.g., ["Mg", "O", "Si"]). These elements will be used as building blocks in the CALYPSO structure generation.
-                             All element symbols must be from the supported element list internally defined in the tool.
-    
-        n_tot (int): The number of CALYPSO structure configurations to generate. Each structure will be generated in a separate subdirectory (e.g., generated_calypso/0/, generated_calypso/1/, etc.)
-    Return:
-        GenerateCalypsoStructureResult with keys:
-          - poscar_paths (Path): Path to access generated structures POSCAR. All structures are saved in outputs/poscars_for_optimization/
-          - message (str): Message about calculation results information.
-    """
 
-    def get_props(s_list):
-        """
-        Get atomic number, atomic radius, and atomic volume infomation for interested species
+##======== Tool generate CrystalFormer Structures ==========
+#class GenerateCryFormerStructureResult(TypedDict):
+#      poscar_paths: Path
+#      message: str
+#
+#@mcp.tool()
+#def generate_crystalformer_thermoele_structures(
+#    space_group: int,
+#    target_props: Optional[List[str]],
+#    target_values: Optional[List[float]],
+#    comparison_ops: Optional[List[str]],
+#    n_tot: int
+#)->GenerateCryFormerStructureResult:
+#   """
+#   Generate conditional structures with target properties and space group number. Different target properties used different property model.
+#   If user did not mention target property, please use band gap as target_prop. If user did not mention the space group please remind the user to
+#   give a value. If user did not mentioned the comparison operator comparison_ops, please remind the user to give a value
+#
+#   Args:
+#     space_group (int): Target space group number for generated structures.
+#     target_props (Optional[List[str]]): Target properties for generated structures.
+#        - "bandgap": hse functional band gap as target property,
+#        - "sound": sound velocity as target property
+#      If none, please use bandgap as target property directly.
+#     target_values (Optional[List[float]]): Target property values for target properties
+#     comparison_ops (Optional[List[str]]): One per target_prop; each must be one of "greater", "less", "equal", "minimize". If none, please use greater for all target_props.
+#     n_tot (int): Total number of structures generated
+#   Returns:
+#     poscar_paths (Path): Path to generated POSCAR.
+#     message (str): Message about calculation results.  
+#   """
+#   try:
+#     if space_group is None or space_group <= 0:
+#         raise ValueError("Please provide a positive integer for `space_group`.")
+#     
+#     if not target_values or len(target_values) != len(target_props):
+#        raise ValueError("`target_values` must be provided and match the length of `target_props`.")
+#     
+#     valid_ops = ("greater", "less", "equal", "minimize")
+#     if len(comparison_ops) != len(target_props):
+#         raise ValueError("`comparison_ops` length must match `target_props` length.")
+#     for op in comparison_ops:
+#         if op not in valid_ops:
+#             raise ValueError(f"Invalid comparison op '{op}'. Must be one of {valid_ops}.")
+#     
+#     workdir = Path("/opt/agents/mcp_tool")
+#     outputs = workdir/ "target"
+#     
+#     mode = "multi" if len(target_props) > 1 else "single"
+#     
+#     #total space group number to generated
+#     upper=min(space_group, n_tot)
+#     random_spacegroup_num = random.randint(1,upper)
+#     print(f"n_tot = {n_tot}")
+#     print(f"random_spacegroup_num = {random_spacegroup_num}")
+#     cmd = [
+#         "uv", "run", "python",
+#         "mcp_tool.py", 
+#         "--mode", str(mode),
+#         "--cond_model_type", *target_props,
+#         "--target", *map(str, target_values),
+#         "--target_type", *comparison_ops, 
+#         "--alpha", "10", 
+#         "--spacegroup", str(space_group),
+#         "--random_spacegroup_num", "1", #str(random_spacegroup_num),
+#         "--init_sample_num", str(n_tot), #str(int(n_tot/random_spacegroup_num)),
+#         "--mc_steps", "2000"
+#     ]
+#     
+#     print(f"cmd = {cmd}")
+#     subprocess.run(cmd, cwd=workdir, check=True)
+#     output_path = Path("outputs")
+#     if output_path.exists():
+#        shutil.rmtree(output_path)
+#     shutil.copytree(outputs, output_path)
+#     return {
+#          "poscar_paths": output_path,
+#          "message": "CrystalFormer structure generation successfully!"
+#     }
+#   except Exception as e:
+#     return {
+#       "poscar_paths": None,
+#       "message": "CrystalFormer Generation failed!"
+#     }
 
-        Args:
-           s_list: species list needed to get atomic number, atomic radius, and atomic volume infomation
-
-        Return:
-           z_list (List): atomic number list for given species list,
-           r_list (List): atomic radius list for given species list,
-           v_list (List): atomic volume list for given species list.
-        """
-
-        z_list, r_list, v_list = [], [], []
-        for s in s_list:
-            if s not in ELEMENT_PROPS:
-                raise ValueError(f"Unsupported element: {s}")
-            props = ELEMENT_PROPS[s]
-            z_list.append(props["Z"])
-            r_list.append(props["r"])
-            v_list.append(props["v"])
-        return z_list, r_list, v_list
-
-    def generate_counts(n):
-        return [random.randint(4, 4) for _ in range(n)]
-   
-    def write_input(path, species, z_list, n_list, r_mat, volume):
-        """
-        Write calypso input files for given species combination with atomic number, number of each species, radius matrix and total volume
-
-        Args:
-          - path (Path): Path to save input file,
-          - species (List[str]): Species list
-          - z_list (List[int]): atomic number list
-          - n_list (List[int]): number of each species list
-          - r_mat: radius matrix
-          - volume (float): total volume
-        """
-
-        # Step 1: reorder all based on atomic number
-        sorted_indices = sorted(range(len(z_list)), key=lambda i: z_list[i])
-        species = [species[i] for i in sorted_indices]
-        z_list = [z_list[i] for i in sorted_indices]
-        n_list = [n_list[i] for i in sorted_indices]
-        r_mat = r_mat[np.ix_(sorted_indices, sorted_indices)]  # reorder matrix
-    
-        # Step 2: write input.dat
-        with open(path / "input.dat", "w") as f:
-            f.write(f"SystemName = {' '.join(species)}\n")
-            f.write(f"NumberOfSpecies = {len(species)}\n")
-            f.write(f"NameOfAtoms = {' '.join(species)}\n")
-            f.write("@DistanceOfIon\n")
-            for i in range(len(species)):
-                row = " ".join(f"{r_mat[i][j]:.3f}" for j in range(len(species)))
-                f.write(row + "\n")
-            f.write("@End\n")
-            f.write(f"Volume = {volume:.2f}\n")
-            f.write(f"AtomicNumber = {' '.join(str(z) for z in z_list)}\n")
-            f.write(f"NumberOfAtoms = {' '.join(str(n) for n in n_list)}\n")
-            f.write("""Ialgo = 2
-PsoRatio = 0.5
-PopSize = 1
-GenType = 1
-ICode = 15
-NumberOfLbest = 4
-NumberOfLocalOptim = 3
-Command = sh submit.sh
-MaxTime = 9000
-MaxStep = 1
-PickUp = F
-PickStep = 1
-Parallel = F
-NumberOfParallel = 4
-Split = T
-PSTRESS = 2000
-fmax = 0.01
-FixCell = F
-""")
-
-
- 
-    #===== Step 1: Generate calypso input files ==========
-    outdir = Path("generated_calypso")
-    outdir.mkdir(parents=True, exist_ok=True)
-
-    
-    z_list, r_list, v_list = get_props(species)
-    for i in range(n_tot):
-        try:
-           n_list = generate_counts(len(species))
-           volume = sum(n * v for n, v in zip(n_list, v_list))
-           r_mat = np.add.outer(r_list, r_list) * 0.529  # bohr → Å
-           
-           struct_dir = outdir / f"{i}"
-           if not struct_dir.exists():
-              struct_dir.mkdir(parents=True, exist_ok=True)
-
-           #Prepare calypso input.dat
-           write_input(struct_dir, species, z_list, n_list, r_mat, volume)
-        except Exception as e:
-           return{
-             "poscar_paths" : None,
-             "message": "Input files generations for calypso failed!" 
-           }
-
-        #Execuate calypso calculation and screening
-        flim_ase_path = Path("/opt/agents/thermal_properties/flim_ase/flim_ase.py")
-        command = f"/opt/agents/thermal_properties/calypso/calypso.x >> tmp_log && python {flim_ase_path}"
-        if not flim_ase_path.exists():
-           return{
-             "poscar_paths": None,
-             "message": "flim_ase.py did not found!"
-   
-           }
-        try:
-           subprocess.run(command, cwd=struct_dir, shell=True)
-        except Exception as e:
-           return{
-             "poscar_paths": None,
-             "message": "calypso.x execute failed!"
-           }
-
-        #Clean struct_dir only save input.dat and POSCAR_1
-        for file in struct_dir.iterdir():
-            if file.name not in ["input.dat", "POSCAR_1"]:
-                if file.is_file():
-                    file.unlink()
-                elif file.is_dir():
-                    shutil.rmtree(file)
-
-    # Step 3: Collect POSCAR_1 into POSCAR_n format
-    try:
-       output_dir = Path("outputs")
-       output_dir.mkdir(parents=True, exist_ok=True)
-       final_dir = output_dir / "poscars_for_optimization"
-       final_dir.mkdir(parents=True, exist_ok=True)
-       counter = 0
-       for struct_dir in outdir.iterdir():
-           poscar_path = struct_dir / "POSCAR_1"
-           if poscar_path.exists():
-               new_name = final_dir / f"POSCAR_{counter}"
-               shutil.copy(poscar_path, new_name)
-               counter += 1
-       
-       return{
-         "poscar_paths": Path(final_dir),
-         "message": f"Calypso generated {n_tot} structures with {species} successfully!"
-       }
-    except Exception as e:
-       return{
-         "poscar_paths": None,
-         "message": "Calypso generated POSCAR files collected failed!"
-       }
-
-
-#======== Tool generate CrystalFormer Structures ==========
-class GenerateCryFormerStructureResult(TypedDict):
-      poscar_paths: Path
+#====== Tool to do geometry optimization=========
+class RunOptimizationResult(TypedDict):
+      optimized_poscar_paths: Path
       message: str
 
 @mcp.tool()
-def generate_crystalformer_structures(
-    space_group: int,
-    target_props: Optional[List[str]],
-    target_values: Optional[List[float]],
-    n_tot: int
-)->GenerateCryFormerStructureResult:
-   """
-   Generate conditional structures with target properties and space group number. Different target properties used different property model.
-   If user did not mention target property, please use band gap as target_prop. If user did not mention the space group please remind the usr to
-   give a value.
+def run_pressure_optimization(
+    structure_path: Path,
+    fmax:float,
+    nsteps:int,
+    pressure:float
+) -> RunOptimizationResult:
+    """
+      Optimize structures with DP model at ambient or high pressure condition.
 
-   Args:
-     space_group (int): Target space group number for generated structures.
-     target_props (Optional[List[str]]): Target properties for generated structures.
-        - "band_gap": hse functional band gap as target property,
-        - "sound_vel": sound velocity as target property
-      If none, please use band_gap as target property directly.
-     target_values (Optional[List[float]]): Target property values for target properties
-     n_tot (int): Total number of structures generated
-   Returns:
-     poscar_paths (Path): Path to generated POSCAR.
-     message (str): Message about calculation results.  
-   """
-   try:
-      supported_props = ["band_gap", "sound_vel"]
+      Args:
+        - structure_path (Path): Path to access structures need to be optimized
+        - ambient (bool): Wether consider ambient condition
+      Return:
+        - optimized_structure_path (Path): Path to access optimized structures
+    """
+    opt_py = Path("/opt/agents/thermal_properties/geo_opt/opt_multi.py")
+
+    try:
+       #delete previous calculations results first
+       optimized_dir = Path("optimized_poscar")
+       if optimized_dir.exists():
+           if optimized_dir.is_dir() and not optimized_dir.is_symlink():
+               shutil.rmtree(optimized_dir)
+           else:
+               optimized_dir.unlink()
+       deep_md = Path("deepmd_npy")
+       if deep_md.exists():
+           if deep_md.is_dir() and not deep_md.is_symlink():
+               shutil.rmtree(deep_md)   # delete the whole folder
+           else:
+               deep_md.unlink()    
+       traj_path = Path("traj")
+       if traj_path.exists():
+           if traj_path.is_dir() and not traj_path.is_symlink():
+               shutil.rmtree(traj_path)   # delete the whole folder
+           else:
+               traj_path.unlink()    
+
+
+       base = Path(structure_path)
+       structure_path = base.parent if base.is_file() else base
+       poscar_files = list(p for pat in ("POSCAR*", "*.cif", "*.CIF")
+              for p in structure_path.rglob(pat))
+       #poscar_files = list(structure_path.rglob("POSCAR*"))
+       if not poscar_files:
+           print(f"No POSCAR files found under: {structure_path}. Exit.")
+           return{
+             "optimized_poscar_paths": None,
+             "message": f"No POSCAR files found under: {structure_path}"
+           }
+       # Build command: use the actual path to opt_py, not the literal string "opt_py"
+       cmd = [
+           "python",
+           str(opt_py),              # <— use the variable here
+           str(fmax),
+           str(pressure),
+           str(pressure),
+           str(nsteps),
+       ] + [str(p) for p in poscar_files]
+       
+       # Run and check for errors
+       subprocess.run(cmd, check=True)
+
+    except Exception as e:
+       print("Geometry Optimization failed!")
+    try:
+       parse_py = Path("/opt/agents/thermal_properties/geo_opt/parse_traj.py")
+       cmd = [
+         "python",
+         str(parse_py)
+       ]
+       
+       # Run and check for errors
+       subprocess.run(cmd, check=True)
+    except Exception as e:
+       print("Collect optimized structures failed!")
+    try:
+       frames =glob.glob('deepmd_npy/*/')
+       multisys = dpdata.MultiSystems()
+       for frame in frames:
+          sys = dpdata.System(frame,'deepmd/npy')
+          multisys.append(sys)
       
-      model  = Path("/opt/agents/thermal_properties/models")
-      model_dirs = {
-        "band_gap":     model / "bandgap" / "model.ckpt.pt",
-        "sound_vel":    model / "shear_modulus" / "model.ckpt.pt",
-      }
-      
-      try:
-         
-         #activate uv
-         workdir = Path("/opt/agents/crystalformer_gpu")
-         outputs = workdir/ "outputs"
-         
-         
-         alpha = [0.5]
-         mc_steps = 2000
-         for prop in target_props:
-             cmd = [
-                 "uv", "run", "python",
-                 "crystalformer_mcp.py",
-                 "--cond_model_path", str(model_dirs[prop]),
-                 "--target", str(target_values),
-                 "--alpha", str(alpha),
-                 "--spacegroup", str(space_group),
-                 "--mc_steps", str(mc_steps),
-                 "--num_samples", str(n_tot),
-                 "--output_path", str(outputs)
-             ]
-             subprocess.run(cmd, cwd=workdir, check=True)
-         
-         output_path = Path("outputs")
-         if output_path.exists():
-            shutil.rmtree(output_path)
-         shutil.copytree(outputs, output_path)
-         return {
-           "poscar_paths": output_path,
-           "message": "CrystalFormer structure generation successfully!"
-         }
-      except Exception as e:
-        return {
-          "poscar_paths": None,
-          "message": "CrystalFormer Execution failed!"
-        }
-   
-   except Exception as e:
-     return {
-       "poscar_paths": None,
-       "message": "CrystalFormer Generation failed!"
-     }
+       optimized_dir.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
+       
+       count=0
+       for frame in multisys:
+          for system in frame:
+              system.to_vasp_poscar(optimized_dir / f'POSCAR_{count}')
+              count+=1
+#       optimized_structures = list(optimized_dir.rglob("POSCAR*"))
+    except Exception as e:
+       print("Convert dpdata to POSCAR failed!")
+
+    return{
+       "optimized_poscar_paths": optimized_dir,
+       "message": "Geometry Optimization successfully"
+    }
+
 
 #======== Tool predict enthalp and select on hull structures=========
 
@@ -594,19 +688,19 @@ class CalculateEntalpyResult(TypedDict):
       message: str
 
 @mcp.tool()
-def calculate_enthalpy(
+def calculate_thermoele_enthalpy(
     structure_path: Path,
     threshold: float,
     pressure: float
 )->CalculateEntalpyResult:
     """ 
     Optimize the crystal structure using DP at a given pressure, then evaluate the enthalpy of the optimized structure,
-    and finally screen for structures above convex hull with a value of threshold.
+    and finally screen for structures above convex hull with a value of threshold (the unit of this threshold is eV).
     When user call cal_enthalpy reminder user to give pressure condition and threshold value to screen structures
     
     Args: 
        - structure_file (Path): Path to the structure files (e.g. POSCAR)
-       - threshold (float): Upper limit for energy above hull. Only structures with energy-above-hull values smaller than this threshold will be selected.
+       - threshold (float): Upper limit for energy above hull. Only structures with energy-above-hull values smaller than this threshold will be selected.The unit is eV.
        - pressure (float): Pressure used in geometry optimization process
 
     Return:
@@ -626,73 +720,13 @@ def calculate_enthalpy(
     enthalpy_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-       poscar_files = list(structure_path.rglob("POSCAR*"))
-       opt_py = Path("/opt/agents/thermal_properties/geo_opt/opt_multi.py")
-
-       try:
-          # Build command: use the actual path to opt_py, not the literal string "opt_py"
-          cmd = [
-              "python",
-              str(opt_py),              # <— use the variable here
-              str(fmax),
-              str(pressure),
-              str(pressure),
-              str(nsteps),
-          ] + [str(p) for p in poscar_files]
-          
-          # Run and check for errors
-          subprocess.run(cmd, check=True)
-
-       except Exception as e:
-          return{
-            "enthalpy_file": [],
-            "e_above_hull_structures": [],
-            "e_above_hull_values": [],
-            "message": "Geometry Optimization failed!"
-          }
-
-       try:
-          parse_py = Path("/opt/agents/thermal_properties/geo_opt/parse_traj.py")
-          cmd = [
-            "python",
-            str(parse_py)
-          ]
-          
-          # Run and check for errors
-          subprocess.run(cmd, check=True)
-       except Exception as e:
-          return{
-            "enthalpy_file": [],
-            "e_above_hull_structures": [],
-            "e_above_hull_values": [],
-            "message": "Screen traj failed!"
-          }
-
-       try:
-          frames =glob.glob('deepmd_npy/*/')
-          multisys = dpdata.MultiSystems()
-          for frame in frames:
-             sys = dpdata.System(frame,'deepmd/npy')
-             multisys.append(sys)
-         
-          optimized_dir = Path("optimized_poscar")
-          optimized_dir.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn't exist
-          
-          count=0
-          for frame in multisys:
-             for system in frame:
-                 system.to_vasp_poscar(optimized_dir / f'POSCAR_{count}')
-                 count+=1
-       except Exception as e:
-          return{
-            "enthalpy_file": [],
-            "e_above_hull_structures": [],
-            "e_above_hull_values": [],
-            "message": "Convert optimized structure to POSCAR failed!"
-          }
        
        try:      
-          poscar_files = list(optimized_dir.rglob("POSCAR*"))
+          #poscar_files = list(structure_path.rglob("POSCAR*")) 
+          results = run_pressure_optimization(structure_path,fmax,nsteps,pressure)
+          optimized_structure_path = results["optimized_poscar_paths"]
+          poscar_files = list(optimized_structure_path.rglob("POSCAR*"))
+          #poscar_files = run_pressure_optimization(structure_path,fmax,nsteps,pressure)
           enthalpy_py = Path("/opt/agents/thermal_properties/geo_opt/predict_enthalpy.py")
           cmd = [
             "python",
@@ -797,7 +831,8 @@ def calculate_enthalpy(
           shutil.copy(src, enthalpy_dir)
    
           src = Path("/opt/agents/thermal_properties/geo_opt/results/e_above_hull_50meV.csv")
-          shutil.copy(src, enthalpy_dir)
+          dest = enthalpy_dir / f"e_above_hull.csv"
+          shutil.copy(src, dest)
                             
        except Exception as e:
           return{
@@ -811,8 +846,9 @@ def calculate_enthalpy(
           on_hull_optimized_structures = enthalpy_dir / "e_above_hull_structures"
           on_hull_optimized_structures.mkdir(parents=True, exist_ok=True)
 
-          e_above_hull_file = enthalpy_dir / "e_above_hull_50meV.csv"
-          e_above_hull_output = enthalpy_dir / "e_above_hull.csv"
+          e_above_hull_file = enthalpy_dir / f"e_above_hull.csv"
+          threshold_meV = int(threshold*1000)
+          e_above_hull_output = enthalpy_dir / f"e_above_hull_{threshold_meV}meV.csv"
 
           with e_above_hull_file.open("r") as f, e_above_hull_output.open("w") as fout:
               # write header for new CSV
@@ -851,36 +887,6 @@ def calculate_enthalpy(
           
                       # write to new CSV, including the absolute path
                       fout.write(f"{cleaned},{energy},{on_hull_optimized_poscar.resolve()}\n")
-#          with e_above_hull_file.open("r") as f:
-#              #If there is a header, skip
-#              first = True
-#              for line in f:
-#                  line.strip()
-#                  if not line:
-#                     continue
-#                  if first and any(c.isalpha() for c in line):
-#                     first = False
-#                     continue
-#                  first = False
-#
-#                  parts = line.split(' ')
-#                  if len(parts) < 4:
-#                     continue
-#
-#                  try:
-#                     energy = float(parts[1])
-#                  except ValueError:
-#                     continue
-#               
-#                  raw = parts[3]
-#                  cleaned = raw.strip().strip('"').strip("'")  
-#                  on_hull_optimized_poscar = Path('.') / cleaned
-#
-#                  if energy <= 0.05  and  on_hull_optimized_poscar.is_file():
-#                     try:
-#                        shutil.copy(on_hull_optimized_poscar, on_hull_optimized_structures)
-#                     except Exception as e:
-#                        print(f"Copy on hull optimized poscar {on_hull_optimized_poscar} failed!")
        except Exception as e:
           return{
            "enthalpy_file": [],
@@ -922,15 +928,15 @@ class ScreenThermoelectricCandidateResults(TypedDict):
 @mcp.tool()
 def screen_thermoelectric_candidate(
       structure_path: Path,
-      above_hull_file: Path
+      pressure: float
 )->ScreenThermoelectricCandidateResults:
 
       """
-      Screen promising thermoelectric materials based on band gap, sound speed and space group number requirements.
+      Screen promising thermoelectric materials based on band gap, sound speed and space group number requirements under given pressure. If user did not define pressure please remind user to give a value
 
       Args:
           structure_file (Path): Path to structure files
-          above_hull_file (Path): Path to above_hull.csv file which about about hull energy information
+          pressure (float): working pressure in GPa
 
       Return:
           ScreenThermoelectricCandidateResults with keys:
@@ -1016,25 +1022,37 @@ def screen_thermoelectric_candidate(
       
           return space_group_number
          
-      # --- 0) load above-hull energies ---
-      above_hull_map: dict[str, float] = {}
-      if above_hull_file.is_file():
-          with above_hull_file.open("r") as fh:
-              reader = csv.DictReader(fh)
-              for row in reader:
-                  # normalize to basename so lookups by Path(...).name match
-                  key = Path(row["structure"]).name                    # ← normalize
-                  above_hull_map[key] = float(row["energy"])
- 
 
       #Predict bandgap
       try:
          structure_path = Path(structure_path)
+
+         ##predict enthalpy to pick up above hull structures within threshold
+         threshold = 0.05
+         results = calculate_thermoele_enthalpy(structure_path, threshold, pressure)
+        
+         structure_path = None
+         structure_path = results["e_above_hull_structures"]
+         above_hull_file = results["e_above_hull_values"]
+
+         #e_above_hull_structures = list(e_above_hull_structure_path.rglob("POSCAR*"))
+         #for e_above_hull_structure in e_above_hull_structures:
+         #    print(f"check e_above_hull_structures = {e_above_hull_structures}")
+
          if not structure_path.exists():
             return {"thermoelectric_file": {}, "message": f"Structure path not found: {structure_path}"}
 
-         results = predict_thermoelectric_properties(structure_path, ["band_gap", "G", "K"])
-         structures_properties = results["properties"]
+         thermoelectric_results = predict_thermoelectric_properties(structure_path, ["band_gap", "G", "K"])
+         structures_properties = thermoelectric_results["properties"]
+
+         above_hull_map: dict[str, float] = {}
+         if above_hull_file.is_file():
+            with above_hull_file.open("r") as fh:
+                reader = csv.DictReader(fh)
+                for row in reader:
+                    # normalize to basename so lookups by Path(...).name match
+                    key = Path(row["structure"]).name
+                    above_hull_map[key] = float(row["energy"])
 
          thermoelectric_candidates: ThermoelectricCandidatesData = {}
 
@@ -1091,13 +1109,6 @@ def screen_thermoelectric_candidate(
 
 
          try:
-#            # Sort results by sound_velocity
-#            sorted_candidates = dict(
-#                sorted(
-#                    thermoelectric_candidates.items(),
-#                    key=lambda item: item[1]["sound_velocity"]
-#                )
-#            )
            sorted_candidates = dict(
                sorted(
                    thermoelectric_candidates.items(),
@@ -1116,6 +1127,14 @@ def screen_thermoelectric_candidate(
              output_dir = Path("outputs")
              output_dir.mkdir(parents=True, exist_ok=True)
              results_file = output_dir / "thermoelectric_material_candidates.csv"
+
+             if not sorted_candidates:
+                 with results_file.open("w") as f:
+                     f.write("No promising candidates found.\n")
+                 return {
+                     "thermoelectric_file": str(results_file),
+                     "message": "No promising candidates found."
+                 }
          
              # Collect all field names from the first thermo_props dict
              sample_props = next(iter(sorted_candidates.values()))
@@ -1178,19 +1197,6 @@ def screen_thermoelectric_candidate(
              "thermoelectric_file": results_file,
              "message": message
          }
-         # --- build a CSV preview of the first 10 candidates ---
-#              preview_lines = []
-#         for structure, props in list(sorted_candidates.items())[:10]:
-#             # join each property into “key=value” pairs
-#             prop_str = ", ".join(f"{k}={v}" for k, v in props.items())
-#             preview_lines.append(f"{formula}: {prop_str}")
-#         
-#         message = "Predicted properties:\n" + "\n".join(preview_lines)
-#
-#         return{
-#           "thermoelectric_file": Path(results_file),
-#           "message": message
-#         }
       except Exception as e:
          return{
            "thermoelectric_file" : [],
@@ -1201,6 +1207,6 @@ def screen_thermoelectric_candidate(
 # ====== Run Server ======
 
 if __name__ == "__main__":
-    transport_type = os.getenv('MCP_TRANSPORT', 'sse')
-    mcp.run(transport=transport_type)
+    logging.info("Starting ThermoelectricMaterialsServer on port 50001...")
+    mcp.run(transport="sse")
 
