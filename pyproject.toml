@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "comp_dart"
 version = "0.1.0"
 description = "Deep Potential Agent for atomistic simulation"
 readme = "README.md"
-requires-python = "==3.12.11"
+# [修正] 你的 Docker 环境是 Python 3.10，必须放宽限制
+requires-python = ">=3.10"
 
 dependencies = [
     "tqdm",
@@ -16,22 +17,26 @@ dependencies = [
     "scipy>=1.12.0",
     "ase>=3.22.1",
     "seekpath>=2.0.1",
-    "torchaudio",
+    # [优化] Dockerfile 已处理核心库，此处仅列出名称作为依赖检查
+    # 不要在这里写版本号，防止覆盖 Dockerfile 中精心准备的版本 (如 torch 2.7.0, numpy 1.26.4)
+    "torch",
     "torchvision",
-    "torch==2.7.0",
-    "deepmd-kit==3.1.0",  
-    "numpy==1.26.4",
-    "dpdata==0.2.25",
+    "torchaudio",
+    # "deepmd-kit",  <-- [删除] 绝对不要写这个，否则会覆盖你的源码编译版
+    "numpy",
+    "dpdata>=0.2.25",
     "phonopy",
     "pymatgen",
     "spglib",
-    "matplotlib",    
-    "typing-extensions",  
+    "matplotlib",
+    "typing-extensions",
     "pyyaml",
     "bohr-agent-sdk>=0.1.101",
     "jsonpickle>=4.1.1",
-    "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox",
-    "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env"
+    # [建议删除] 以下两个包已在 Dockerfile 中通过 Git 安装。
+    # 如果必须保留，请确保 Docker 安装的版本满足此处要求，否则 pip install . 时会重新下载。
+    # "dpdispatcher", 
+    # "bohrium-sdk"
 ]
 
 [project.optional-dependencies]

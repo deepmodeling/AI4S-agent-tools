@@ -19,7 +19,8 @@ WORKDIR /mcp_server/comp-dart-gitlab
 # 依然保留 scikit-build-core，因为 DeepMD 新版确实需要它
 RUN pip install --upgrade pip setuptools wheel \
     scikit-build scikit-build-core \
-    cmake ninja packaging distro pathspec pyproject_metadata
+    cmake ninja packaging distro pathspec pyproject_metadata \
+    setuptools_scm
 
 # -----------------------------------------------------------------------------
 # 2. 核心科学计算库 (关键修改)
