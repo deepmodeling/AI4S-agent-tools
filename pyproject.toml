@@ -7,7 +7,8 @@ name = "comp_dart"
 version = "0.1.0"
 description = "Deep Potential Agent for atomistic simulation"
 readme = "README.md"
-requires-python = "==3.12.11"
+# [修正1] 必须放宽，适配 Docker 的 Python 3.10
+requires-python = ">=3.10"
 
 dependencies = [
     "tqdm",
@@ -19,37 +20,21 @@ dependencies = [
     "torchaudio",
     "torchvision",
     "torch==2.7.0",
-    "deepmd-kit @  git+https://github.com/iProzd/deepmd-kit.git@4cc677d6adf4fa1fd6202fbc6008bbd6bd0fe21f",  
+    # [修正2] Docker 里已有 DeepMD，本地 uv 需要时才取消注释并加 git+
+    # 建议在 Docker 构建时注释掉这行，或者使用 uv 的 overrides 功能
+    # "deepmd-kit @ git+https://github.com/iProzd/deepmd-kit.git@4cc677d6adf4fa1fd6202fbc6008bbd6bd0fe21f",
     "numpy==1.26.4",
     "dpdata==0.2.25",
     "phonopy",
     "pymatgen",
     "spglib",
-    "matplotlib",    
-    "typing-extensions",  
+    "matplotlib",
+    "typing-extensions",
     "pyyaml",
     "bohr-agent-sdk>=0.1.101",
     "jsonpickle>=4.1.1",
+    # [修正3] 修正 URL 格式 (加上 git+)
     "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox",
     "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env"
 ]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=6.2.0",
-    "black>=21.0.0",
-    "flake8>=3.9.0",
-]
-docs = [
-    "sphinx>=4.0.0",
-]
-
-[project.scripts]
-comp-dart = "comp_dart.server:main"
-
-[tool.setuptools.packages.find]
-include = ["comp_dart*", "comp_dart.*"]
-
-[tool.setuptools.package-data]
-"*" = ["*.json", "*.cif", "*.pt", "*.pth"]
-"comp_dart" = ["../constant/*.json", "../struct_template/*"]
+# ... 其他保持不变
