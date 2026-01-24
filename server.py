@@ -1,8 +1,11 @@
 import argparse
 import logging
 import sys
-from typing import List, Dict, Optional, Union
+import re
+from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
+from pydantic import BaseModel, Field
+from pydantic.functional_validators import field_validator
 
 from dp.agent.server import CalculationMCPServer
 
@@ -16,6 +19,18 @@ from comp_dart.targets.density_combined import DensityTarget
 from comp_dart.targets.linear_mixture import LinearMixtureTarget
 from comp_dart.generators.template_filler import TemplateLatticeFiller
 from comp_dart.api.endpoints import optimize_composition
+
+
+class ConstraintItem(BaseModel):
+    target: Union[str, List[str]]
+    condition: str
+    
+    @field_validator('condition')
+    def validate_condition_syntax(cls, v):
+        pattern = r'^(>=|<=|>|<|=)\s*(-?\d+(?:\.\d+)?)$'
+        if not re.match(pattern, v):
+            raise ValueError(f'Condition must be in format "operator value", e.g. "<0.5", ">=0.1". Got: {v}')
+        return v
 
 
 def parse_args():
@@ -45,7 +60,7 @@ mcp = CalculationMCPServer("DPACalculatorServer", host=args.host, port=args.port
 @mcp.tool()
 def run_ga(
     elements: List[str], 
-    constraints: Optional[Dict] = None,
+    constraints: Optional[List[ConstraintItem]] = None,
     init_mode: str = "random",
     population_size: int = 10,
     selection_mode: str = "roulette",
@@ -60,7 +75,7 @@ def run_ga(
     crossover_rate: float = 0.8,
     mutation_rate: float = 0.1,
     init_population: Optional[List[List[float]]] = None,
-    model_path: Path = None,
+    model_path: Optional[Path] = None,
     generations: int = 10,
     output: str = "ga_run.log",
     property0_apply_norm: bool = False,
@@ -98,14 +113,15 @@ def run_ga(
             - 'roulette': Roulette wheel selection based on fitness
             - 'tournament': Tournament selection with configurable tournament size
             
-        constraints (dict, optional): Composition constraints as a dictionary where keys 
-            are element symbols or tuples of element symbols and values are constraint 
-            specifications. Examples:
-            - {'Fe': '<0.5'} - Iron fraction must be less than 0.5
-            - {('Fe','Ni'): '<0.8'} - Sum of Fe and Ni fractions must be less than 0.8
-            - {'Co': '>0.1'} - Cobalt fraction must be greater than 0.1
-            If None, no constraints are applied.
-        
+        constraints (list of dict, optional): A list of constraint objects.
+            Each dictionary must contain:
+            - "target" (str or list of str): The element(s) to constrain.
+            - "condition" (str): The constraint expression (e.g., "<0.5", ">0.1").
+            
+            Examples:
+            - Single element: {"target": "Fe", "condition": "<0.5"}
+            - Sum of elements: {"target": ["Fe", "Ni"], "condition": "<0.8"}
+
         property0_name (str): Name of the first property to optimize (e.g., "TEC", "BandGap").
             Defaults to "property0".
             
@@ -199,34 +215,65 @@ def run_ga(
         dict with pred_property0_std (float): Predicted standard deviation of first property
         dict with pred_property1_mean (float): Predicted mean of second property value
         dict with pred_property1_std (float): Predicted standard deviation of second property
+        dict with best_score (float): The best fitness score achieved during optimization
     """
     # Convert constraint specifications to constraint objects
     print(f"Elements: {elements}, Constraints: {constraints}, Init mode: {init_mode}, Init population: {init_population}, Population size: {population_size}, Selection mode: {selection_mode}")
 
     constraint_objects = []
     if constraints:
-        for element, constraint_str in constraints.items():
-            if isinstance(element, tuple):  # Sum constraint
-                operator = constraint_str[0]
-                value = float(constraint_str[1:])
-                constraint_objects.append(SumConstraint(element, operator, value))
-            else:  # Element bound constraint
-                operator = constraint_str[0]
-                value = float(constraint_str[1:])
-                constraint_objects.append(ElementBoundConstraint(element, operator, value))
+        operator_pattern = re.compile(r"^(>=|<=|>|<|=)\s*(-?\d+(?:\.\d+)?)$")
+        for c_item in constraints:
+            # Extract target and condition from the Pydantic object
+            target_raw = c_item.target
+            constraint_str = c_item.condition
+
+            # Parse the operator and value from the condition string using regex
+            match = operator_pattern.match(constraint_str)
+            if not match:
+                raise ValueError(f'Invalid condition format: {constraint_str}')
+            operator = match.group(1)
+            value = float(match.group(2))
+
+            # Logic to determine if it is a single element or a tuple (SumConstraint)
+            if isinstance(target_raw, list):
+                if len(target_raw) > 1:
+                    # It is a list of multiple elements -> Tuple/SumConstraint
+                    element_key = tuple(target_raw)
+                    constraint_objects.append(SumConstraint(element_key, operator, value))
+                elif len(target_raw) == 1:
+                    # List containing single element -> ElementBoundConstraint
+                    element_key = target_raw[0]
+                    constraint_objects.append(ElementBoundConstraint(element_key, operator, value))
+                else:
+                    print("Empty target list in constraints.")
+            elif isinstance(target_raw, str):
+                # String -> ElementBoundConstraint
+                constraint_objects.append(ElementBoundConstraint(target_raw, operator, value))
+            else:
+                print(f"Unsupported target type in constraint: {type(target_raw)}")
 
     # Create targets
     # Load models from model_path
     # Support arbitrary number and types of targets
     targets = []
     
+    # Handle model_path safely to prevent None checks
+    valid_model_path = None
+    if model_path is not None:
+        path_obj = Path(model_path)
+        if path_obj.exists():
+            valid_model_path = path_obj
+        else:
+            print(f"Model path does not exist: {model_path}")
+    
     # Add property 0 target based on specified method
     if property0_method == "surrogate":
         # Add surrogate model targets if model path is provided
-        if model_path and model_path.exists():
+        if valid_model_path:
             # Create surrogate target with model_path - let SurrogateModelTarget handle compressed files
-            print(f"Loading models from {model_path}")
-            surrogate_target = SurrogateModelTarget(model_path=str(model_path), requires_structure=True)
+            print(f"Loading models from {valid_model_path}")
+            surrogate_target = SurrogateModelTarget(model_path=str(valid_model_path), requires_structure=True)
             print(f"Successfully loaded surrogate target for {property0_name}")
             targets.append(surrogate_target)
         else:
@@ -254,10 +301,10 @@ def run_ga(
         targets.append(density_target)
     elif property1_method == "surrogate":
         # Add surrogate model target for property 1 if model path is provided
-        if model_path and model_path.exists():
+        if valid_model_path:
             # Create surrogate target with model_path - let SurrogateModelTarget handle compressed files
-            print(f"Loading models from {model_path}")
-            surrogate_target = SurrogateModelTarget(model_path=str(model_path), requires_structure=True)
+            print(f"Loading models from {valid_model_path}")
+            surrogate_target = SurrogateModelTarget(model_path=str(valid_model_path), requires_structure=True)
             print(f"Successfully loaded surrogate target for {property1_name}")
             targets.append(surrogate_target)
         else:
@@ -350,7 +397,7 @@ def run_ga(
     # Calculate property 0 values based on specified method
     if targets[0] is not None:
         try:
-            if property0_method == "surrogate" and model_path and model_path.exists():
+            if property0_method == "surrogate" and valid_model_path:
                 # Use first target for surrogate model predictions (mean and std)
                 property0_result = targets[0].predict(
                     composition, 
@@ -423,7 +470,7 @@ def run_ga(
                     "mean": property1_result.get_original_value(),
                     "std": 0.0  # Density calculation has no inherent std (linear mixture)
                 })
-            elif property1_method == "surrogate" and model_path and model_path.exists():
+            elif property1_method == "surrogate" and valid_model_path:
                 # Use second target for surrogate model predictions (mean and std)
                 property1_result = targets[1].predict(
                     composition, 
