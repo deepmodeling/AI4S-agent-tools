@@ -1,4 +1,4 @@
-FROM registry.dp.tech/dptech/deepmd-kit:3.1.0-cuda12.1
+FROM registry.dp.tech/dptech/deepmd-kit:3.1.1
 
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Asia/Shanghai
@@ -15,6 +15,7 @@ WORKDIR /mcp_server/comp-dart-gitlab
 
 # RUN uv sync
 # Install the package in development mode to make it importable
+RUN pip install torch==2.7.0 torchvision torchaudio
 RUN pip install git+https://github.com/iProzd/deepmd-kit.git@4cc677d6adf4fa1fd6202fbc6008bbd6bd0fe21f
 RUN pip install pymatgen ase pyyaml numpy==1.26.4  jsonpickle>=4.1.1 bohr-agent-sdk>=0.1.101
 RUN pip install "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox"
