@@ -30,7 +30,7 @@ RUN pip install torch==2.7.0 torchvision torchaudio
 
 # 4. 安装 DeepMD-kit
 # 此时环境中有 TF 和 scikit-build，--no-build-isolation 才能成功
-RUN pip install --no-build-isolation git+https://github.com/iProzd/deepmd-kit.git@4cc677d6adf4fa1fd6202fbc6008bbd6bd0fe21f
+RUN pip install --no-build-isolation  --no-use-pep517 git+https://github.com/iProzd/deepmd-kit.git@4cc677d6adf4fa1fd6202fbc6008bbd6bd0fe21f
 
 # 5. 安装其余依赖
 # 注意：bohr-agent-sdk 可能会再次检查 numpy 版本，确保兼容
