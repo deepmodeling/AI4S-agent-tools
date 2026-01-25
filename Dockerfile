@@ -51,25 +51,42 @@ ENV DP_ENABLE_TENSORFLOW=1
 RUN uv pip install --system -v --no-build-isolation --no-deps .
 
 # =============================================================================
-# Step 3: 安装应用依赖
+# Step 3: 安装应用依赖 (修复缺少 orjson 等子依赖的问题)
 # =============================================================================
 WORKDIR /mcp_server/comp-dart-gitlab
 RUN rm -rf /tmp/deepmd_build
 
-# 排除 deepmd-kit, tensorflow, torch
-RUN uv pip install --system --no-deps \
-    tqdm "requests>=2.32.3" "flask>=3.1.1" \
-    "scipy>=1.12.0" "ase>=3.22.1" "seekpath>=2.0.1" \
-    "numpy==1.26.4" "dpdata==0.2.25" \
-    phonopy pymatgen spglib matplotlib typing-extensions pyyaml \
-    "bohr-agent-sdk>=0.1.101" "jsonpickle>=4.1.1"
+# [关键修改]
+# 1. 去掉 --no-deps: 让 uv 自动安装 pymatgen 依赖的 orjson, monty, pandas 等
+# 2. 显式锁定 numpy==1.26.4: 确保 uv 解析依赖时，不会为了迎合其他包而升级 numpy
+# 3. 显式锁定 Flask, Requests 等版本
+RUN uv pip install --system \
+    "numpy==1.26.4" \
+    "tqdm" \
+    "requests>=2.32.3" \
+    "flask>=3.1.1" \
+    "scipy>=1.12.0" \
+    "ase>=3.22.1" \
+    "seekpath>=2.0.1" \
+    "dpdata==0.2.25" \
+    "phonopy" \
+    "pymatgen" \
+    "spglib" \
+    "matplotlib" \
+    "typing-extensions" \
+    "pyyaml" \
+    "bohr-agent-sdk>=0.1.101" \
+    "jsonpickle>=4.1.1"
 
-RUN uv pip install --system --no-deps \
+# Git 依赖通常包含子依赖，建议也去掉 --no-deps (除非你非常确定它们不缺包)
+RUN uv pip install --system \
     "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox" \
     "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env"
 
 # =============================================================================
 # Step 4: 验证
 # =============================================================================
+# 验证 pymatgen 及其依赖 orjson 是否正常
+RUN python -c "import pymatgen.core; print('Pymatgen imported successfully')"
 RUN python -c "import deepmd; print(f'DeepMD version: {deepmd.__version__}')"
 RUN python -c "import comp_dart; print('Successfully imported comp_dart')"
