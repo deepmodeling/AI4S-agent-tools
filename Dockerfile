@@ -82,7 +82,7 @@ RUN uv pip install --system \
 RUN uv pip install --system \
     "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox" \
     "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env"
-
+RUN uv pip cache purge
 # =============================================================================
 # Step 4: 验证
 # =============================================================================
