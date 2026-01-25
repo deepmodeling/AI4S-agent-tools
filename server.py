@@ -525,4 +525,4 @@ def run_ga(
 
 if __name__ == "__main__":
     logging.info("Starting Unified MCP Server with all tools...")
-    mcp.run(transport="sse")
+    mcp.run(transport="streamable-http")
