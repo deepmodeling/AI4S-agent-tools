@@ -58,7 +58,7 @@ mcp = CalculationMCPServer("DPACalculatorServer", host=args.host, port=args.port
 
 
 @mcp.tool()
-def run_ga(
+def run_dart_ga(
     elements: List[str], 
     constraints: Optional[List[ConstraintItem]] = None,
     init_mode: str = "random",
