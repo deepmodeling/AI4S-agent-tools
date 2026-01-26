@@ -79,11 +79,11 @@ def build_target(config: TargetConfig) -> Target:
     if config.type == "surrogate":
         if not config.model_path:
             raise ValueError("model_path is required when target type is 'surrogate'")
-        path = Path(config.model_path)
-        if not path.exists():
+        # config.model_path is already a Path type
+        if not config.model_path.exists():
             raise ValueError(f"model_path does not exist: {config.model_path}")
         return SurrogateModelTarget(
-            model_path=str(path),
+            model_path=config.model_path,
             requires_structure=config.requires_structure,
         )
 

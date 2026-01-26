@@ -105,7 +105,7 @@ class TemplateLatticeFiller(StructureGenerator):
     """
     Structure generator that fills template lattices with elements based on composition.
     """
-    def __init__(self, template_path: Union[str, Path] = None, 
+    def __init__(self, template_path: Union[Path, str, None] = None, 
                  elements_to_replace: Union[List[str], str] = "all",
                  supercell_factor: List[int] = None):
         """

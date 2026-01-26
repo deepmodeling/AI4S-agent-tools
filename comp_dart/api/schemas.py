@@ -9,6 +9,7 @@ from typing import List, Dict, Optional, Union, Literal, Any
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
 import re
+from enum import Enum
 
 
 class NormalizationConfig(BaseModel):
@@ -109,12 +110,24 @@ class TargetConfig(BaseModel):
                    "Useful for uncertainty-aware optimization. Note: linear_mixture typically has std=0."
     )
     
-    model_path: Optional[Union[str, Path]] = Field(
+    model_path: Optional[Path] = Field(
         default=None,
         description="Path to directory or compressed file (zip/tar.gz) containing surrogate model files (.pt, .pth). "
                    "Required when type is 'surrogate'. All model files in the directory/archive will be loaded. "
                    "Each target can have its own model_path, allowing different targets to use different models."
     )
+    
+    @field_validator('model_path', mode='before')
+    @classmethod
+    def validate_model_path(cls, v: Any) -> Path | None:
+        """Convert string to Path if provided."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return Path(v)
+        if isinstance(v, Path):
+            return v
+        raise TypeError(f"model_path must be str or Path, got {type(v)}")
     
     normalization: Optional[NormalizationConfig] = Field(
         default=None,
@@ -127,6 +140,14 @@ class TargetConfig(BaseModel):
         description="Whether this target requires structure information for prediction. "
                    "Surrogate models typically require structures (True), while linear_mixture usually does not (False)."
     )
+
+
+class PackingType(str, Enum):
+    """Enum for crystal packing types."""
+    FCC = "fcc"
+    BCC = "bcc"
+    HCP = "hcp"
+
 
 
 class StructureConfig(BaseModel):
@@ -143,12 +164,29 @@ class StructureConfig(BaseModel):
                    "'auto': Automatically determine structure (not yet implemented)."
     )
     
-    template_path: Optional[Union[str, Path]] = Field(
+    template_path: Optional[Union[Path, Literal["fcc", "bcc", "hcp"]]] = Field(
         default=None,
         description="Path to template structure file (CIF format) or packing type string ('fcc', 'bcc', 'hcp'). "
                    "If None, defaults to 'fcc-Ni' template. The template defines the crystal structure "
-                   "that will be filled with the optimized composition."
+                   "that will be filled with the optimized composition. "
+                   "If a file path is provided (not a packing type), it will be converted to Path type."
     )
+    
+    @field_validator('template_path', mode='before')
+    @classmethod
+    def validate_template_path(cls, v: Any) -> Union[Path, str, None]:
+        """Validate template path - allow file paths or specific packing types."""
+        if v is None:
+            return None
+        # If it's a packing type string, keep it as string
+        if isinstance(v, str) and v.lower() in ("fcc", "bcc", "hcp"):
+            return v.lower()
+        # Otherwise, convert to Path if it's a string
+        if isinstance(v, str):
+            return Path(v)
+        if isinstance(v, Path):
+            return v
+        raise TypeError(f"template_path must be str, Path, or packing type ('fcc', 'bcc', 'hcp'), got {type(v)}")
     
     supercell: Optional[List[int]] = Field(
         default=None,
@@ -293,9 +331,19 @@ class OptimizationRequest(BaseModel):
                    "will be padded with zeros or truncated to match."
     )
     
-    output: str = Field(
+    output_file_name: str = Field(
         default="ga_run.log",
-        description="Path to the output file where execution details and results will be recorded. "
+        description="Name of the output file where execution details and results will be recorded. "
                    "All execution information, including generation progress and final results, "
                    "will be logged to this file in JSON format."
     )
+    
+    @field_validator('output_file_name', mode='before')
+    @classmethod
+    def validate_output(cls, v: Any) -> str:
+        """Ensure output is a string representing a file name."""
+        if isinstance(v, str):
+            return v
+        if isinstance(v, Path):
+            return str(v.name)  # Only return the file name, not full path
+        raise TypeError(f"output_file_name must be str, got {type(v)}")

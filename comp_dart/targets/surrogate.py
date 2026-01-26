@@ -12,7 +12,7 @@ import tempfile
 from pymatgen.core import Structure
 from dpdata import System
 from tqdm import tqdm
-import pathlib
+from pathlib import Path
 
 
 # Use absolute paths from project root
@@ -89,7 +89,7 @@ class SurrogateModelTarget(Target):
     Target that uses surrogate models for property prediction.
     """
     
-    def __init__(self, model_path: str, requires_structure: bool = True):
+    def __init__(self, model_path: Path, requires_structure: bool = True):
         """
         Initialize surrogate model target.
         
@@ -101,7 +101,7 @@ class SurrogateModelTarget(Target):
         self.requires_structure = requires_structure
         self.models = self._load_models(model_path)
         
-    def _load_models(self, model_path: str) -> List[Any]:
+    def _load_models(self, model_path: Path) -> List[Any]:
         """
         Load models from path.
         
@@ -114,7 +114,7 @@ class SurrogateModelTarget(Target):
         models = []
         
         # Convert to Path object for easier handling
-        path_obj = pathlib.Path(model_path)
+        path_obj = Path(model_path)
         
         # Handle compressed files
         if path_obj.is_file() and path_obj.suffix == '.zip':
@@ -122,13 +122,15 @@ class SurrogateModelTarget(Target):
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     zip_ref.extractall(tmp_dir)
                     # Recursively load models from extracted directory
-                    return self._load_models(tmp_dir)
+                    extracted_path = Path(tmp_dir)
+                    return self._load_models(extracted_path)
         elif path_obj.is_file() and path_obj.suffix in ['.gz', '.bz2', '.xz'] and '.tar' in path_obj.name:
             with tarfile.open(path_obj, 'r') as tar_ref:
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     tar_ref.extractall(tmp_dir)
                     # Recursively load models from extracted directory
-                    return self._load_models(tmp_dir)
+                    extracted_path = Path(tmp_dir)
+                    return self._load_models(extracted_path)
         elif path_obj.is_file() and path_obj.suffix in ['.pt', '.pth']:
             # Handle single model file
             try:

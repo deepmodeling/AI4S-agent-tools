@@ -47,20 +47,7 @@ mcp = CalculationMCPServer("DPACalculatorServer", host=args.host, port=args.port
 
 
 @mcp.tool()
-def run_dart_ga(
-    elements: List[str],
-    targets: List[Dict[str, Any]],
-    structure_config: Optional[Dict[str, Any]] = None,
-    constraints: Optional[List[Dict[str, Any]]] = None,
-    population_size: int = 10,
-    generations: int = 10,
-    crossover_rate: float = 0.8,
-    mutation_rate: float = 0.1,
-    selection_mode: str = "roulette",
-    init_mode: str = "random",
-    init_population: Optional[List[List[float]]] = None,
-    output: str = "ga_run.log",
-) -> Dict[str, Any]:
+def run_dart_ga(request: OptimizationRequest) -> Dict:
     """
     Run genetic algorithm for composition optimization.
 
@@ -70,22 +57,8 @@ def run_dart_ga(
 
     Returns a dict with best_individual, pred_{name}_mean/std per target, and best_score.
     """
-    payload: Dict[str, Any] = {
-        "elements": elements,
-        "targets": targets,
-        "structure_config": structure_config if structure_config is not None else {},
-        "constraints": constraints,
-        "population_size": population_size,
-        "generations": generations,
-        "crossover_rate": crossover_rate,
-        "mutation_rate": mutation_rate,
-        "selection_mode": selection_mode,
-        "init_mode": init_mode,
-        "init_population": init_population,
-        "output": output,
-    }
-    req = OptimizationRequest.model_validate(payload)
-    return run_optimization(req)
+    
+    return run_optimization(request)
 
 
 if __name__ == "__main__":
