@@ -1,201 +1,182 @@
-from typing import List, Dict, Any, Optional
+"""
+API entry points for composition optimization.
+
+Delegates to factory for building targets, structure generator, and constraints.
+Runs the GA and returns structured results.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any, Dict, List
+
 import numpy as np
-import torch
-import zipfile
-import tarfile
-import tempfile
-import glob
-import os
 
-# Import core modules
-from comp_dart.core.ga import GeneticAlgorithm
+from comp_dart.api.schemas import OptimizationRequest
+from comp_dart.core.factory import (
+    build_constraints,
+    build_structure_generator,
+    build_target,
+)
 from comp_dart.core.fitness import WeightedAggregator
-from comp_dart.core.constraints import ElementBoundConstraint, SumConstraint
-from comp_dart.core.interfaces import Target, Constraint, StructureGenerator
-
-# Import targets
-from comp_dart.targets.surrogate import SurrogateModelTarget
-from comp_dart.targets.linear_mixture import LinearMixtureTarget
-from comp_dart.targets.density_combined import DensityTarget
-
-# Import generators
-from comp_dart.generators.template_filler import TemplateLatticeFiller
-from comp_dart.generators.substitution_generator import SubstitutionGenerator
+from comp_dart.core.ga import GeneticAlgorithm
+from comp_dart.core.interfaces import Target, TargetResult
 
 
 def optimize_composition(ga: GeneticAlgorithm) -> Dict[str, Any]:
     """
-    Optimize composition using genetic algorithm.
-    
+    Run GA evolution and return best individual and score.
+
     Args:
-        ga: GeneticAlgorithm instance
-        
+        ga: Configured GeneticAlgorithm instance.
+
     Returns:
-        Dictionary with optimization results
+        Dict with "best_individual" (list) and "best_score" (float).
     """
     best_individual, best_score = ga.evolve()
-    
     return {
         "best_individual": best_individual.tolist(),
-        "best_score": float(best_score)
+        "best_score": float(best_score),
     }
 
 
-def predict_property(composition: List[float], target: Target, structure: Any = None) -> Dict[str, Any]:
+def run_optimization(req: OptimizationRequest) -> Dict[str, Any]:
     """
-    Predict property for a given composition using a target model.
-    
-    Args:
-        composition: Composition to evaluate
-        target: Target model to use for prediction
-        structure: Optional structure information
-        
-    Returns:
-        Dictionary with prediction results
+    Run full optimization from an OptimizationRequest.
+
+    Builds targets, structure generator, and constraints via factory;
+    runs the GA; evaluates the best composition with each target;
+    writes results to req.output and returns the result dict.
     """
-    # Convert composition to numpy array
+    # Build domain objects from config
+    constraint_objects = build_constraints(req.constraints or [])
+    targets: List[Target] = []
+    for tc in req.targets:
+        targets.append(build_target(tc))
+    structure_generator = build_structure_generator(req.structure_config)
+
+    # Weights: target_2j = mean, target_2j+1 = std for each target j
+    weights: Dict[str, float] = {}
+    for j, tc in enumerate(req.targets):
+        weights[f"target_{2 * j}"] = tc.mean_weight
+        weights[f"target_{2 * j + 1}"] = tc.std_weight
+    aggregator = WeightedAggregator(weights)
+
+    # GA
+    ga = GeneticAlgorithm(
+        targets=targets,
+        constraints=constraint_objects,
+        structure_generator=structure_generator,
+        aggregator=aggregator,
+        elements=req.elements,
+        population_size=req.population_size,
+        generations=req.generations,
+        crossover_rate=req.crossover_rate,
+        mutation_rate=req.mutation_rate,
+        selection_mode=req.selection_mode,
+    )
+
+    # Normalization: same config for mean (target_2j) and std (target_2j+1) of each target
+    ga.target_normalization = {}
+    for j, tc in enumerate(req.targets):
+        norm = tc.normalization
+        apply_norm = bool(norm and norm.apply_normalization)
+        raw_mean = norm.mean if norm else None
+        raw_std = norm.std if norm else None
+        entry = {
+            "apply_normalization": apply_norm,
+            "raw_mean": raw_mean,
+            "raw_std": raw_std,
+        }
+        ga.target_normalization[f"target_{2 * j}"] = entry
+        ga.target_normalization[f"target_{2 * j + 1}"] = entry
+
+    # Evolve
+    result = optimize_composition(ga)
+    composition = np.array(result["best_individual"])
+    elements = req.elements
+
+    # Generate structures if any target needs them
+    structures = None
+    for t in targets:
+        if t.requires_structure:
+            structures = structure_generator.generate(composition, elements)
+            break
+
+    # Evaluate best composition with each target for reporting
+    pred: Dict[str, float] = {}
+    for j, (target, tc) in enumerate(zip(targets, req.targets)):
+        norm = tc.normalization
+        apply_norm = bool(norm and norm.apply_normalization)
+        raw_mean = norm.mean if norm else None
+        raw_std = norm.std if norm else None
+        structure = structures[0] if structures and target.requires_structure else None
+        try:
+            res = target.predict(
+                composition,
+                structure,
+                elements=elements,
+                apply_normalization=apply_norm,
+                raw_mean=raw_mean,
+                raw_std=raw_std,
+            )
+            mean_val = res.get_original_value()
+            std_val = res.get_original_uncertainty() if res.uncertainty is not None else 0.0
+        except Exception as e:
+            raise ValueError(f"Could not evaluate target '{tc.name}': {e}") from e
+        pred[f"pred_{tc.name}_mean"] = float(mean_val)
+        pred[f"pred_{tc.name}_std"] = float(std_val)
+
+    out = {
+        "best_individual": [float(x) for x in composition],
+        **pred,
+        "best_score": result["best_score"],
+    }
+
+    with open(req.output, "w") as f:
+        json.dump(out, f, indent=2)
+
+    return out
+
+
+def predict_property(
+    composition: List[float],
+    target: Target,
+    structure: Any = None,
+    *,
+    elements: List[str] | None = None,
+    apply_normalization: bool = False,
+    raw_mean: float | None = None,
+    raw_std: float | None = None,
+) -> Dict[str, Any]:
+    """
+    Predict a single property for a composition using a target model.
+    """
     comp_array = np.array(composition)
-    
-    # Make prediction
-    result = target.predict(comp_array, structure)
-    
+    result = target.predict(
+        comp_array,
+        structure,
+        elements=elements,
+        apply_normalization=apply_normalization,
+        raw_mean=raw_mean,
+        raw_std=raw_std,
+    )
     return {
         "value": float(result.value),
         "uncertainty": float(result.uncertainty or 0.0),
-        "metadata": result.metadata
+        "metadata": result.metadata,
     }
 
 
 def list_targets(targets: List[Target]) -> List[Dict[str, Any]]:
     """
-    List available targets.
-    
-    Args:
-        targets: List of target objects
-        
-    Returns:
-        List of target information
+    Return a list of target metadata dicts.
     """
-    target_info = []
-    for i, target in enumerate(targets):
-        info = {
+    return [
+        {
             "name": f"target_{i}",
-            "requires_structure": target.requires_structure,
-            "type": type(target).__name__
+            "requires_structure": t.requires_structure,
+            "type": type(t).__name__,
         }
-        target_info.append(info)
-        
-    return target_info
-
-
-def _create_target(target_config: Dict[str, Any]) -> Optional[Target]:
-    """
-    Create target instance from configuration.
-    
-    Args:
-        target_config: Configuration dictionary for target
-        
-    Returns:
-        Target instance or None if creation failed
-    """
-    target_type = target_config.get("type")
-    
-    if target_type == "surrogate" or target_type == "surrogate_model":
-        # Extract model path from config
-        model_path = target_config.get("model_path")
-        models = []
-        
-        # Load models if model_path is provided
-        if model_path:
-            try:
-                # Check if model_path is a file (compressed) or directory
-                if os.path.isfile(model_path):
-                    # Handle compressed file
-                    with tempfile.TemporaryDirectory() as tmp_dir:
-                        if model_path.endswith('.zip'):
-                            with zipfile.ZipFile(model_path, 'r') as zip_ref:
-                                zip_ref.extractall(tmp_dir)
-                        elif model_path.endswith('.tar.gz') or model_path.endswith('.tgz'):
-                            with tarfile.open(model_path, 'r:gz') as tar_ref:
-                                tar_ref.extractall(tmp_dir)
-                        else:
-                            raise ValueError(f"Unsupported archive format: {model_path}")
-                        
-                        # Load models from extracted files
-                        model_files = glob.glob(os.path.join(tmp_dir, "**/*.pt"), recursive=True) + \
-                                      glob.glob(os.path.join(tmp_dir, "**/*.pth"), recursive=True)
-                        
-                        for model_file in model_files:
-                            try:
-                                # Load model with map_location to handle CPU-only environments
-                                model = torch.load(model_file, map_location=torch.device('cpu'))
-                                models.append(model)
-                            except Exception as e:
-                                print(f"Warning: Could not load model from {model_file}: {e}")
-                else:
-                    # Handle directory
-                    model_files = glob.glob(os.path.join(model_path, "*.pt")) + \
-                                  glob.glob(os.path.join(model_path, "*.pth"))
-                    
-                    for model_file in model_files:
-                        try:
-                            # Load model with map_location to handle CPU-only environments
-                            model = torch.load(model_file, map_location=torch.device('cpu'))
-                            models.append(model)
-                        except Exception as e:
-                            print(f"Warning: Could not load model from {model_file}: {e}")
-            except Exception as e:
-                print(f"Warning: Could not load models from {model_path}: {e}")
-        
-        # Extract normalization parameters
-        mean = target_config.get("mean")
-        std = target_config.get("std")
-        requires_structure = target_config.get("requires_structure", True)
-        
-        return SurrogateModelTarget(
-            models=models if models else [], 
-            mean=mean, 
-            std=std,
-            requires_structure=requires_structure
-        )
-        
-    elif target_type == "linear_mixture":
-        element_properties = target_config.get("element_properties") or target_config.get("properties", {})
-        requires_structure = target_config.get("requires_structure", False)
-        return LinearMixtureTarget(element_properties, requires_structure)
-        
-    elif target_type == "density":
-        element_densities = target_config.get("element_densities") or target_config.get("densities", {})
-        preferred_methods = target_config.get("preferred_methods", ["structure_based", "linear"])
-        requires_structure = target_config.get("requires_structure", True)
-        return DensityTarget(element_densities, preferred_methods, requires_structure)
-        
-    else:
-        print(f"Unknown target type: {target_type}")
-        return None
-
-
-def _create_constraint(constraint_spec: Dict[str, Any]) -> Optional[Constraint]:
-    """
-    Create constraint object from specification.
-    
-    Args:
-        constraint_spec: Constraint specification dictionary
-        
-    Returns:
-        Constraint object or None if creation failed
-    """
-    constraint_type = constraint_spec.get("type")
-    if constraint_type == "element_bound":
-        return ElementBoundConstraint(
-            element=constraint_spec["element"],
-            operator=constraint_spec["operator"],
-            value=constraint_spec["value"]
-        )
-    elif constraint_type == "sum":
-        return SumConstraint(
-            elements=tuple(constraint_spec["elements"]),
-            operator=constraint_spec["operator"],
-            value=constraint_spec["value"]
-        )
-    return None
+        for i, t in enumerate(targets)
+    ]

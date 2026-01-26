@@ -100,11 +100,11 @@ class LinearMixtureTarget(Target):
             property_value = np.sum(composition_array * property_array)
         
         # Apply normalization if requested
-        normalized_value = value
+        normalized_value = property_value
         if apply_normalization:
             if raw_mean is None or raw_std is None:
                 raise ValueError("Both raw_mean and raw_std must be provided when apply_normalization is True")
-            normalized_value = (value - raw_mean) / raw_std
+            normalized_value = (property_value - raw_mean) / raw_std
             
         # Create metadata with normalization info
         metadata = {
