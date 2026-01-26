@@ -37,6 +37,8 @@ ATOMIC_MASS_FILE = os.path.join(CONSTANT_DIR, "atomic_mass.json")
 
 _CONDITION_PATTERN = re.compile(r"^(>=|<=|>|<|=)\s*(-?\d+(?:\.\d+)?)$")
 
+from typing import Optional
+
 
 def _load_preset_data(data_source: str) -> Dict[str, float]:
     """
@@ -69,21 +71,22 @@ def build_target(config: TargetConfig) -> Target:
     """
     Build a Target instance from TargetConfig.
 
-    Design: Method-First Reusability
-    - Surrogate: Uses model_path for ML predictions
-    - LinearMixture: Reusable method that works with any data source (density, atomic_mass, custom)
+    Args:
+        config: Target configuration
 
-    Normalization is applied at predict time via GA target_normalization; targets only
-    receive raw config here.
+    Design: Method-First Reusability
+    - Surrogate: Uses model_path directly from config
+    - LinearMixture: Reusable method that works with any data source (density, atomic_mass, custom)
     """
     if config.type == "surrogate":
         if not config.model_path:
-            raise ValueError("model_path is required when target type is 'surrogate'")
-        # config.model_path is already a Path type
-        if not config.model_path.exists():
-            raise ValueError(f"model_path does not exist: {config.model_path}")
+            raise ValueError(f"model_path is required for target '{config.name}'")
+        
+        # Convert string path to Path object
+        path_obj = Path(config.model_path)
+            
         return SurrogateModelTarget(
-            model_path=config.model_path,
+            model_path=path_obj,
             requires_structure=config.requires_structure,
         )
 
@@ -114,12 +117,27 @@ def build_structure_generator(config: StructureConfig) -> StructureGenerator:
     """
     Build a StructureGenerator from StructureConfig.
 
-    Currently only template mode is supported; auto mode raises NotImplementedError.
+    Args:
+        config: Structure configuration
+    
+    Supports:
+    - Preset templates: fcc, bcc, hcp
+    - Custom templates via direct file paths
     """
     if config.mode == "auto":
         raise NotImplementedError("Structure mode 'auto' is not implemented")
+    
+    resolved_template = None
+    if config.template_path:
+        # Check for preset templates
+        if config.template_path.lower() in ("fcc", "bcc", "hcp"):
+            resolved_template = config.template_path.lower()
+        else:
+            # Treat as file path
+            resolved_template = Path(config.template_path)
+
     return TemplateLatticeFiller(
-        template_path=config.template_path,
+        template_path=resolved_template,
         elements_to_replace=config.elements_to_replace,
         supercell_factor=config.supercell,
     )

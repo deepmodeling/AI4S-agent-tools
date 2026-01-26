@@ -6,7 +6,6 @@ enabling type-safe validation and clear API documentation.
 """
 
 from typing import List, Dict, Optional, Union, Literal, Any
-from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
 import re
 from enum import Enum
@@ -110,24 +109,10 @@ class TargetConfig(BaseModel):
                    "Useful for uncertainty-aware optimization. Note: linear_mixture typically has std=0."
     )
     
-    model_path: Optional[Path] = Field(
+    model_path: Optional[str] = Field(
         default=None,
-        description="Path to directory or compressed file (zip/tar.gz) containing surrogate model files (.pt, .pth). "
-                   "Required when type is 'surrogate'. All model files in the directory/archive will be loaded. "
-                   "Each target can have its own model_path, allowing different targets to use different models."
+        description="Path or URL to the surrogate model file. Required when type='surrogate'."
     )
-    
-    @field_validator('model_path', mode='before')
-    @classmethod
-    def validate_model_path(cls, v: Any) -> Path | None:
-        """Convert string to Path if provided."""
-        if v is None:
-            return None
-        if isinstance(v, str):
-            return Path(v)
-        if isinstance(v, Path):
-            return v
-        raise TypeError(f"model_path must be str or Path, got {type(v)}")
     
     normalization: Optional[NormalizationConfig] = Field(
         default=None,
@@ -164,29 +149,10 @@ class StructureConfig(BaseModel):
                    "'auto': Automatically determine structure (not yet implemented)."
     )
     
-    template_path: Optional[Union[Path, Literal["fcc", "bcc", "hcp"]]] = Field(
+    template_path: Optional[str] = Field(
         default=None,
-        description="Path to template structure file (CIF format) or packing type string ('fcc', 'bcc', 'hcp'). "
-                   "If None, defaults to 'fcc-Ni' template. The template defines the crystal structure "
-                   "that will be filled with the optimized composition. "
-                   "If a file path is provided (not a packing type), it will be converted to Path type."
+        description="Path to template file (CIF) or a preset string ('fcc', 'bcc', 'hcp')."
     )
-    
-    @field_validator('template_path', mode='before')
-    @classmethod
-    def validate_template_path(cls, v: Any) -> Union[Path, str, None]:
-        """Validate template path - allow file paths or specific packing types."""
-        if v is None:
-            return None
-        # If it's a packing type string, keep it as string
-        if isinstance(v, str) and v.lower() in ("fcc", "bcc", "hcp"):
-            return v.lower()
-        # Otherwise, convert to Path if it's a string
-        if isinstance(v, str):
-            return Path(v)
-        if isinstance(v, Path):
-            return v
-        raise TypeError(f"template_path must be str, Path, or packing type ('fcc', 'bcc', 'hcp'), got {type(v)}")
     
     supercell: Optional[List[int]] = Field(
         default=None,
@@ -238,13 +204,14 @@ class ConstraintConfig(BaseModel):
         return v
 
 
-class OptimizationRequest(BaseModel):
+# --- New Grouping Models ---
+
+class ProblemConfig(BaseModel):
     """
-    Root configuration model for composition optimization using genetic algorithm.
+    Configuration model defining the material science problem to be solved.
     
-    This model encapsulates all parameters needed to run a genetic algorithm optimization
-    for material compositions, including target properties, constraints, structure generation,
-    and GA hyperparameters.
+    This model encapsulates all aspects of the materials problem itself,
+    independent of the optimization algorithm used to solve it.
     """
     elements: List[str] = Field(
         ...,
@@ -262,19 +229,20 @@ class OptimizationRequest(BaseModel):
                    "according to their configured weights."
     )
     
-    structure_config: StructureConfig = Field(
-        default_factory=StructureConfig,
-        description="Configuration for structure generation during optimization. "
-                   "Structures are needed for structure-dependent property predictions."
-    )
-    
     constraints: Optional[List[ConstraintConfig]] = Field(
         default=None,
         description="Optional list of composition constraints. Constraints limit the allowed composition space "
                    "by specifying bounds on individual elements or sums of elements."
     )
+
+
+class AlgorithmConfig(BaseModel):
+    """
+    Configuration model defining the genetic algorithm optimization strategy.
     
-    # Genetic Algorithm Parameters
+    This model encapsulates all hyperparameters controlling the behavior
+    of the genetic algorithm used to solve the materials problem.
+    """
     population_size: int = Field(
         default=10,
         ge=2,
@@ -330,20 +298,3 @@ class OptimizationRequest(BaseModel):
                    "If provided compositions have different lengths than the elements list, they "
                    "will be padded with zeros or truncated to match."
     )
-    
-    output_file_name: str = Field(
-        default="ga_run.log",
-        description="Name of the output file where execution details and results will be recorded. "
-                   "All execution information, including generation progress and final results, "
-                   "will be logged to this file in JSON format."
-    )
-    
-    @field_validator('output_file_name', mode='before')
-    @classmethod
-    def validate_output(cls, v: Any) -> str:
-        """Ensure output is a string representing a file name."""
-        if isinstance(v, str):
-            return v
-        if isinstance(v, Path):
-            return str(v.name)  # Only return the file name, not full path
-        raise TypeError(f"output_file_name must be str, got {type(v)}")

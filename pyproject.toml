@@ -29,7 +29,11 @@ dependencies = [
     "matplotlib",
     "typing-extensions",
     "pyyaml",
-    "bohr-agent-sdk>=0.1.101",
+    # 修改前
+    # "bohr-agent-sdk>=0.1.101",
+
+    # 修改后 (指向本地路径)
+    "bohr-agent-sdk @ file:///personal/TOOLS_IN_DEV/agents_dev/bohr-agent-sdk",
     "jsonpickle>=4.1.1",
     "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox",
     "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env"
