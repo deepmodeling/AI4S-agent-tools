@@ -45,6 +45,8 @@ def run_optimization(
     problem: ProblemConfig,
     algorithm: AlgorithmConfig,
     structure: StructureConfig,
+    model_files: Dict[str, str] = None,
+    template_file: str = None,
     output_file: str = "ga_run.log"
 ) -> Dict[str, Any]:
     """
@@ -56,14 +58,18 @@ def run_optimization(
     """
     # Build domain objects from config
     constraint_objects = build_constraints(problem.constraints or [])
+    
+    # Sort by key to ensure deterministic order (property_0, property_1...)
+    sorted_items = sorted(problem.targets.items())
     targets: List[Target] = []
-    for tc in problem.targets:
-        targets.append(build_target(tc))
-    structure_generator = build_structure_generator(structure)
+    for key_id, tc in sorted_items:
+        targets.append(build_target(key_id, tc, model_files=model_files))
+    
+    structure_generator = build_structure_generator(structure, template_file=template_file)
 
     # Weights: target_2j = mean, target_2j+1 = std for each target j
     weights: Dict[str, float] = {}
-    for j, tc in enumerate(problem.targets):
+    for j, (key_id, tc) in enumerate(sorted_items):
         weights[f"target_{2 * j}"] = tc.mean_weight
         weights[f"target_{2 * j + 1}"] = tc.std_weight
     aggregator = WeightedAggregator(weights)
@@ -86,7 +92,7 @@ def run_optimization(
 
     # Normalization: same config for mean (target_2j) and std (target_2j+1) of each target
     ga.target_normalization = {}
-    for j, tc in enumerate(problem.targets):
+    for j, (key_id, tc) in enumerate(sorted_items):
         norm = tc.normalization
         apply_norm = bool(norm and norm.apply_normalization)
         raw_mean = norm.mean if norm else None
@@ -113,7 +119,8 @@ def run_optimization(
 
     # Evaluate best composition with each target for reporting
     pred: Dict[str, float] = {}
-    for j, (target, tc) in enumerate(zip(targets, problem.targets)):
+    for j, (key_id, tc) in enumerate(sorted_items):
+        target = targets[j]
         norm = tc.normalization
         apply_norm = bool(norm and norm.apply_normalization)
         raw_mean = norm.mean if norm else None

@@ -61,11 +61,14 @@ class TargetConfig(BaseModel):
     
     This design allows LinearMixture to be reused for any property that follows linear mixing rules:
     density, atomic mass, cost, etc. - just change the data_source.
+    
+    NOTE: Model paths are passed separately in the top-level 'model_files' dictionary.
     """
     name: str = Field(
         ...,
         description="User-defined name/label for the target property (e.g., 'Density', 'TEC', 'BandGap', 'Cost'). "
-                   "This name will be used in output results and logging. It does NOT determine the calculation method."
+                   "This name will be used in output results and logging. It does NOT determine the calculation method. "
+                   "Note: The target ID comes from the parent dictionary key (e.g. 'property_0')."
     )
     
     type: Literal["surrogate", "linear_mixture"] = Field(
@@ -109,10 +112,6 @@ class TargetConfig(BaseModel):
                    "Useful for uncertainty-aware optimization. Note: linear_mixture typically has std=0."
     )
     
-    model_path: Optional[str] = Field(
-        default=None,
-        description="Path or URL to the surrogate model file. Required when type='surrogate'."
-    )
     
     normalization: Optional[NormalizationConfig] = Field(
         default=None,
@@ -141,6 +140,8 @@ class StructureConfig(BaseModel):
     
     Structures are generated for each composition to enable structure-dependent
     property predictions (e.g., surrogate models that require atomic coordinates).
+    
+    NOTE: Template path is passed separately as a top-level argument.
     """
     mode: Literal["template", "auto"] = Field(
         default="template",
@@ -149,10 +150,6 @@ class StructureConfig(BaseModel):
                    "'auto': Automatically determine structure (not yet implemented)."
     )
     
-    template_path: Optional[str] = Field(
-        default=None,
-        description="Path to template file (CIF) or a preset string ('fcc', 'bcc', 'hcp')."
-    )
     
     supercell: Optional[List[int]] = Field(
         default=None,
@@ -221,12 +218,12 @@ class ProblemConfig(BaseModel):
                    "Must contain at least 2 elements."
     )
     
-    targets: List[TargetConfig] = Field(
+    targets: Dict[str, TargetConfig] = Field(
         ...,
-        min_length=1,
-        description="List of target properties to optimize. Each target can have different prediction methods, "
-                   "weights, and normalization settings. The optimization will simultaneously optimize all targets "
-                   "according to their configured weights."
+        description="Dictionary of target properties to optimize. Keys MUST be 'property_0', 'property_1', etc. "
+                   "Each target can have different prediction methods, weights, and normalization settings. "
+                   "The optimization will simultaneously optimize all targets according to their configured weights. "
+                   "The dictionary key serves as the target ID."
     )
     
     constraints: Optional[List[ConstraintConfig]] = Field(

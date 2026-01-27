@@ -67,75 +67,80 @@ def _load_preset_data(data_source: str) -> Dict[str, float]:
         raise ValueError(f"Invalid JSON in preset data file {file_path}: {e}")
 
 
-def build_target(config: TargetConfig) -> Target:
+def build_target(target_id: str, config: TargetConfig, model_files: Dict[str, Union[Path, str]] = None) -> Target:
     """
-    Build a Target instance from TargetConfig.
-
+    Build Target instance using target_id as key to look up model file path.
+    
     Args:
+        target_id: The dictionary key used to identify this target
         config: Target configuration
-
+        model_files: Optional dictionary mapping target IDs to model file paths
+    
     Design: Method-First Reusability
-    - Surrogate: Uses model_path directly from config
+    - Surrogate: Look up path by target_id in model_files dictionary
     - LinearMixture: Reusable method that works with any data source (density, atomic_mass, custom)
     """
     if config.type == "surrogate":
-        if not config.model_path:
-            raise ValueError(f"model_path is required for target '{config.name}'")
-        
-        # Convert string path to Path object
-        path_obj = Path(config.model_path)
+        # Look up path by target_id
+        if not model_files or target_id not in model_files:
+            raise ValueError(
+                f"Surrogate target '{config.name}' (ID: {target_id}) requires a file path "
+                f"in 'model_files' under key '{target_id}'."
+            )
             
+        raw_path = model_files[target_id]
+        if isinstance(raw_path, str):
+            path_obj = Path(raw_path)
+        else:
+            path_obj = raw_path
+        
         return SurrogateModelTarget(
             model_path=path_obj,
             requires_structure=config.requires_structure,
         )
 
     if config.type == "linear_mixture":
-        # Determine element properties based on data_source
-        element_properties: Dict[str, float] | None = None
-
+        props = None
         if config.data_source == "custom":
             if not config.custom_coefficients:
-                raise ValueError(
-                    "custom_coefficients is required when data_source='custom' for linear_mixture"
-                )
-            element_properties = config.custom_coefficients
+                raise ValueError("custom_coefficients required for custom data_source")
+            props = config.custom_coefficients
         elif config.data_source in ("density", "atomic_mass"):
-            element_properties = _load_preset_data(config.data_source)
+            props = _load_preset_data(config.data_source)
         else:
             raise ValueError(f"Unknown data_source: {config.data_source}")
 
         return LinearMixtureTarget(
-            element_properties=element_properties,
+            element_properties=props,
             requires_structure=config.requires_structure,
         )
 
     raise ValueError(f"Unknown target type: {config.type}")
 
 
-def build_structure_generator(config: StructureConfig) -> StructureGenerator:
+def build_structure_generator(config: StructureConfig, template_file: Optional[Path] = None) -> StructureGenerator:
     """
-    Build a StructureGenerator from StructureConfig.
-
+    Build StructureGenerator using the explicitly passed template_file.
+    
     Args:
         config: Structure configuration
+        template_file: Optional Path to template file. If provided, takes precedence over config.template_path.
+                   Can be either a preset string ('fcc', 'bcc', 'hcp') or a file path.
     
     Supports:
-    - Preset templates: fcc, bcc, hcp
+    - Preset templates: fcc, bcc, hcp (when template_file is Path('fcc'), etc.)
     - Custom templates via direct file paths
     """
     if config.mode == "auto":
-        raise NotImplementedError("Structure mode 'auto' is not implemented")
+        raise NotImplementedError("Auto mode not implemented")
     
     resolved_template = None
-    if config.template_path:
-        # Check for preset templates
-        if config.template_path.lower() in ("fcc", "bcc", "hcp"):
-            resolved_template = config.template_path.lower()
+    if template_file is not None:
+        if isinstance(template_file, str) and template_file.lower() in ("fcc", "bcc", "hcp"):
+            resolved_template = template_file.lower()
         else:
-            # Treat as file path
-            resolved_template = Path(config.template_path)
-
+            resolved_template = Path(template_file) if isinstance(template_file, str) else template_file
+            
     return TemplateLatticeFiller(
         template_path=resolved_template,
         elements_to_replace=config.elements_to_replace,
@@ -144,26 +149,19 @@ def build_structure_generator(config: StructureConfig) -> StructureGenerator:
 
 
 def build_constraints(configs: List[ConstraintConfig]) -> List[Constraint]:
-    """
-    Build Constraint instances from ConstraintConfig list.
-
-    Parses condition strings and maps to ElementBoundConstraint or SumConstraint.
-    """
-    out: List[Constraint] = []
+    """Build Constraints from configs."""
+    out = []
     for c in configs:
         m = _CONDITION_PATTERN.match(c.condition)
         if not m:
-            raise ValueError(f"Invalid condition format: {c.condition}")
-        op, val_str = m.group(1), m.group(2)
-        value = float(val_str)
-        target_raw = c.target
-        if isinstance(target_raw, list):
-            if len(target_raw) > 1:
-                out.append(SumConstraint(tuple(target_raw), op, value))
-            elif len(target_raw) == 1:
-                out.append(ElementBoundConstraint(target_raw[0], op, value))
-        elif isinstance(target_raw, str):
-            out.append(ElementBoundConstraint(target_raw, op, value))
+            raise ValueError(f"Invalid condition: {c.condition}")
+        op, val = m.group(1), float(m.group(2))
+        
+        if isinstance(c.target, list):
+            if len(c.target) > 1:
+                out.append(SumConstraint(tuple(c.target), op, val))
+            else:
+                out.append(ElementBoundConstraint(c.target[0], op, val))
         else:
-            raise TypeError(f"Unsupported constraint target type: {type(target_raw)}")
+            out.append(ElementBoundConstraint(c.target, op, val))
     return out

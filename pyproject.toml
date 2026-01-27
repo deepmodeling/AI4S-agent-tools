@@ -20,7 +20,7 @@ dependencies = [
     "torchaudio",
     "torchvision",
     "torch==2.7.0",
-    # "deepmd-kit @ git+https://github.com/iProzd/deepmd-kit.git@4cc677d6adf4fa1fd6202fbc6008bbd6bd0fe21f",
+    "deepmd-kit @ git+https://github.com/iProzd/deepmd-kit.git@4cc677d6adf4fa1fd6202fbc6008bbd6bd0fe21f",
     "numpy==1.26.4",
     "dpdata==0.2.25",
     "phonopy",
@@ -35,7 +35,7 @@ dependencies = [
     # 修改后 (指向本地路径)
     "bohr-agent-sdk @ file:///personal/TOOLS_IN_DEV/agents_dev/bohr-agent-sdk",
     "jsonpickle>=4.1.1",
-    "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@sandbox",
+    "dpdispatcher @ git+https://github.com/zjgemi/dpdispatcher.git@46865e12cdc00fabd7dd5550eb052ab70cc835a5",
     "bohrium-sdk @ git+https://github.com/zjgemi/bohrium-openapi-python-sdk.git@sandbox-env"
 ]
 

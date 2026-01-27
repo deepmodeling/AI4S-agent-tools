@@ -12,7 +12,7 @@ import logging
 import sys
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from dp.agent.server import CalculationMCPServer
 from pydantic import Field
@@ -43,15 +43,25 @@ def run_dart_ga(
     problem: ProblemConfig,
     algorithm: AlgorithmConfig,
     structure: StructureConfig,
+    model_files: Dict[str, Path] = Field(
+        default_factory=dict, 
+        description="Map of target keys ('property_0'...) to file paths/URLs."
+    ),
+    template_file: str = Field(
+        default="fcc", 
+        description="Structure template path or preset ('fcc', 'bcc')."
+    ),
     output_file: str = "ga_run.log"
 ) -> Dict:
     """
     Run genetic algorithm for composition optimization.
     
     Args:
-        problem: Defines elements, targets (including model paths), and constraints.
-        algorithm: Defines GA hyperparameters (population, generations, etc.).
-        structure: Defines structure generation settings (including template path).
+        problem: Elements, targets, and constraints.
+        algorithm: GA hyperparameters.
+        structure: Structure generation settings.
+        model_files: Map of {TargetName: Path} for surrogate models.
+        template_file: File path for the structure template.
         output_file: Name of the output log file.
     """
     print(f"Starting GA with elements: {problem.elements}")
@@ -60,25 +70,28 @@ def run_dart_ga(
     constraints = build_constraints(problem.constraints) if problem.constraints else []
     
     # 2. Build Structure Generator
-    structure_gen = build_structure_generator(structure)
+    structure_gen = build_structure_generator(structure, template_file=template_file)
     
-    # 3. Build Targets & Weights
+    # 3. Targets
     targets = []
     weights = {}
     target_norm_config = {}
     
-    for i, t_config in enumerate(problem.targets):
-        # Build target (paths are inside t_config now)
-        target_obj = build_target(t_config)
+    # Sort by key to ensure deterministic order (property_0, property_1...)
+    # This is crucial because GA fitness vectors depend on order
+    sorted_items = sorted(problem.targets.items())
+    
+    for i, (key_id, t_config) in enumerate(sorted_items):
+        # Pass key_id and dict to factory
+        target_obj = build_target(key_id, t_config, model_files=model_files)
         targets.append(target_obj)
         
-        # Setup weights (Mean and Std)
-        # Mapping index i to "target_2i" (mean) and "target_2i+1" (std)
+        # Weights
         base_idx = i * 2
         weights[f"target_{base_idx}"] = t_config.mean_weight
         weights[f"target_{base_idx+1}"] = t_config.std_weight
         
-        # Setup Normalization
+        # Normalization
         norm = t_config.normalization
         norm_settings = {
             "apply_normalization": norm.apply_normalization if norm else False,
@@ -123,8 +136,9 @@ def run_dart_ga(
         "details": {}
     }
     
-    # Calculate predictions for report
-    for i, (t_obj, t_conf) in enumerate(zip(targets, problem.targets)):
+    # Iterate using same sorted order
+    for i, (key_id, t_conf) in enumerate(sorted_items):
+        t_obj = targets[i]
         try:
             norm_args = {}
             if t_conf.normalization:
@@ -158,4 +172,4 @@ def run_dart_ga(
 
 if __name__ == "__main__":
     logging.info("Starting DART Server...")
-    mcp.run(transport="streamable-http")
+    mcp.run(transport="sse")
