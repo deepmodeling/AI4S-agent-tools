@@ -102,18 +102,16 @@ class TargetConfig(BaseModel):
     
     mean_weight: float = Field(
         default=1.0,
-        ge=0.0,
         description="Weight coefficient for the mean value of this target in the fitness function. "
                    "Controls how much the mean prediction contributes to the overall fitness score. "
-                   "Higher values prioritize optimizing this property's mean value."
+                   "Positive values maximize; negative values minimize this property's mean."
     )
     
     std_weight: float = Field(
         default=0.0,
-        ge=0.0,
         description="Weight coefficient for the standard deviation (uncertainty) of this target in the fitness function. "
                    "Controls how much the prediction uncertainty contributes to the overall fitness score. "
-                   "Useful for uncertainty-aware optimization. Note: linear_mixture typically has std=0."
+                   "May be negative. Note: linear_mixture typically has std=0."
     )
     
     
