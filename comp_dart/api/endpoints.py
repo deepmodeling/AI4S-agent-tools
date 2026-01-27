@@ -8,8 +8,8 @@ Runs the GA and returns structured results.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
 from pathlib import Path
+from typing import Any, Dict, List, Union
 
 import numpy as np
 
@@ -45,9 +45,9 @@ def run_optimization(
     problem: ProblemConfig,
     algorithm: AlgorithmConfig,
     structure: StructureConfig,
-    model_files: Dict[str, str] = None,
-    template_file: str = None,
-    output_file: str = "ga_run.log"
+    model_files: Dict[str, Union[str, Path]] = None,
+    template_file: Union[str, Path] = None,
+    output_file: Union[str, Path] = "ga_run.log",
 ) -> Dict[str, Any]:
     """
     Run full optimization from configuration objects.
@@ -55,6 +55,8 @@ def run_optimization(
     Builds targets, structure generator, and constraints via factory;
     runs the GA; evaluates the best composition with each target;
     writes results to output_file and returns the result dict.
+
+    output_file and template_file accept Path so SDK can resolve OSS paths.
     """
     # Build domain objects from config
     constraint_objects = build_constraints(problem.constraints or [])

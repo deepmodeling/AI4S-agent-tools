@@ -3,10 +3,14 @@ Pydantic V2 schema definitions for Composition DART optimization requests.
 
 This module provides structured data models for all input parameters,
 enabling type-safe validation and clear API documentation.
+
+MCP Tool (run_dart_ga): All keys are fixed; LLM fills only values.
+File-related fields use Path so the SDK can resolve OSS links to local paths.
 """
 
+from pathlib import Path
 from typing import List, Dict, Optional, Union, Literal, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import re
 from enum import Enum
 
@@ -294,4 +298,130 @@ class AlgorithmConfig(BaseModel):
                    "Each composition should sum to 1.0. Used when init_mode is not 'random'. "
                    "If provided compositions have different lengths than the elements list, they "
                    "will be padded with zeros or truncated to match."
+    )
+
+
+# -----------------------------------------------------------------------------
+# MCP Tool Args: run_dart_ga
+# Single flat "args" object; keys fixed, LLM fills values only. Path for files.
+# -----------------------------------------------------------------------------
+
+
+class NormalizationParams(BaseModel):
+    """Params for z-score: mean and std. Keys fixed; only values are filled."""
+    mean: float = Field(..., description="Mean for z-score normalization.")
+    std: float = Field(..., description="Standard deviation for z-score normalization.")
+
+
+class NormalizationInArgs(BaseModel):
+    """Normalization config in MCP args. method + params (fixed keys)."""
+    method: Literal["z-score", "min-max"] = Field(
+        default="z-score",
+        description="Normalization method. 'z-score' uses params.mean and params.std."
+    )
+    params: NormalizationParams = Field(
+        ...,
+        description="Params object with mean and std (for z-score). Keys fixed."
+    )
+
+
+class TargetConfigInArgs(BaseModel):
+    """
+    One target in the MCP run_dart_ga args. Keys fixed; LLM fills values.
+    - surrogate: must set model_path (Path, for OSS/file); data_source ignored.
+    - linear_mixture: must set data_source ('density' etc.); model_path ignored.
+    """
+    name: str = Field(..., description="Label for this target (e.g. 'TEC', 'density').")
+    type: Literal["surrogate", "linear_mixture"] = Field(
+        ...,
+        description="'surrogate': use model at model_path. 'linear_mixture': use data_source."
+    )
+    model_path: Optional[Path] = Field(
+        default=None,
+        description="Path or OSS URL to model file. Required when type='surrogate'. Use Path so SDK can resolve OSS."
+    )
+
+    @field_validator("model_path", mode="before")
+    @classmethod
+    def coerce_model_path_to_path(cls, v: object) -> Optional[Path]:
+        if v is None:
+            return None
+        return Path(v) if isinstance(v, str) else v
+    data_source: Optional[Literal["density", "atomic_mass", "custom"]] = Field(
+        default=None,
+        description="Preset data for linear_mixture. Required when type='linear_mixture'. E.g. 'density'."
+    )
+    weight_mean: float = Field(default=1.0, description="Weight for mean in fitness; may be negative to minimize.")
+    weight_std: float = Field(default=0.0, description="Weight for std in fitness; may be negative.")
+    normalization: Optional[NormalizationInArgs] = Field(
+        default=None,
+        description="Optional normalization (method + params). Keys fixed."
+    )
+
+    @model_validator(mode="after")
+    def check_type_specific_fields(self):
+        if self.type == "surrogate" and self.model_path is None:
+            raise ValueError("model_path is required when type='surrogate'")
+        if self.type == "linear_mixture" and self.data_source is None:
+            raise ValueError("data_source is required when type='linear_mixture'")
+        return self
+
+
+class StructureConfigInArgs(BaseModel):
+    """Structure config in MCP args. template_path: preset name or Path to file."""
+    mode: Literal["template", "auto"] = Field(
+        default="template",
+        description="'template': use template_path; 'auto' not implemented."
+    )
+    template_path: Union[Path, Literal["fcc", "bcc", "hcp"]] = Field(
+        ...,
+        description="Preset 'fcc'|'bcc'|'hcp' or Path to template file. Path used so SDK can resolve OSS."
+    )
+    supercell: Optional[List[int]] = Field(
+        default=None,
+        description="Supercell [x,y,z]. Defaults to [5,5,5] when not set."
+    )
+
+
+class RunDartGAArgs(BaseModel):
+    """
+    Single args object for MCP tool run_dart_ga.
+    Tool is invoked with args = RunDartGAArgs; all keys are fixed, LLM fills values.
+    File-related fields (output, model_path in targets) use Path for SDK/OSS handling.
+    """
+    elements: List[str] = Field(
+        ...,
+        min_length=2,
+        description="Element symbols defining composition space (e.g. ['Fe','Ni','Co','V'])."
+    )
+    population_size: int = Field(default=10, ge=2, description="GA population size.")
+    generations: int = Field(default=10, ge=1, description="GA generations.")
+    crossover_rate: float = Field(default=0.8, ge=0.0, le=1.0, description="Crossover rate.")
+    mutation_rate: float = Field(default=0.1, ge=0.0, le=1.0, description="Mutation rate.")
+    selection_mode: Literal["roulette", "tournament"] = Field(
+        default="roulette",
+        description="Selection mode: 'roulette' or 'tournament'."
+    )
+    output: Path = Field(
+        ...,
+        description="Output file path. Must be Path so SDK can resolve OSS and create correct path."
+    )
+
+    @field_validator("output", mode="before")
+    @classmethod
+    def coerce_output_to_path(cls, v: object) -> Path:
+        return Path(v) if isinstance(v, str) else v
+
+    targets: List[TargetConfigInArgs] = Field(
+        ...,
+        min_length=1,
+        description="List of targets; order defines target index. Keys in each item are fixed."
+    )
+    structure_config: StructureConfigInArgs = Field(
+        ...,
+        description="Structure generation: mode, template_path, supercell."
+    )
+    constraints: Optional[List[ConstraintConfig]] = Field(
+        default=None,
+        description="Optional constraints: list of {target, condition}. Keys fixed."
     )
