@@ -103,49 +103,64 @@ class SurrogateModelTarget(Target):
         
     def _load_models(self, model_path: Path) -> List[Any]:
         """
-        Load models from path.
+        Load models from path. If path is an archive (zip/tar etc.), extract it
+        and load all *.pt / *.pth files inside, passing each to DeepProperty.
         
         Args:
-            model_path: Path to model file or directory containing models
+            model_path: Path to model file, directory, or compressed archive containing models
             
         Returns:
-            List of loaded models
+            List of loaded DeepProperty models
         """
         models = []
-        
-        # Convert to Path object for easier handling
         path_obj = Path(model_path)
-        
-        # Handle compressed files
-        if path_obj.is_file() and path_obj.suffix == '.zip':
-            with zipfile.ZipFile(path_obj, 'r') as zip_ref:
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    zip_ref.extractall(tmp_dir)
-                    # Recursively load models from extracted directory
-                    extracted_path = Path(tmp_dir)
-                    return self._load_models(extracted_path)
-        elif path_obj.is_file() and path_obj.suffix in ['.gz', '.bz2', '.xz'] and '.tar' in path_obj.name:
-            with tarfile.open(path_obj, 'r') as tar_ref:
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    tar_ref.extractall(tmp_dir)
-                    # Recursively load models from extracted directory
-                    extracted_path = Path(tmp_dir)
-                    return self._load_models(extracted_path)
-        elif path_obj.is_file() and path_obj.suffix in ['.pt', '.pth']:
-            # Handle single model file
-            try:
-                # Load model with map_location to handle CPU-only environments
-                print(f"Loading model from {path_obj}...")
-                model = DeepProperty(str(path_obj))
-                models.append(model)
-                print(f"Successfully loaded model from {path_obj}")
-            except Exception as e:
-                print(f"Warning: Could not load model from {path_obj}: {e}")
-                # Print full traceback
-                traceback.print_exc()
-                # Raise exception instead of continuing
-                raise RuntimeError(f"Failed to load model from {path_obj}: {e}")
-        elif path_obj.is_dir():
+        if not path_obj.exists():
+            raise ValueError(f"Model path does not exist: {model_path}")
+
+        # 压缩包：解压后收集内部所有 *.pt 并送给 DeepProperty
+        if path_obj.is_file():
+            if zipfile.is_zipfile(path_obj):
+                with zipfile.ZipFile(path_obj, 'r') as zip_ref:
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        zip_ref.extractall(tmp_dir)
+                        root = Path(tmp_dir)
+                        pt_files = sorted(root.rglob("*.pt")) + sorted(root.rglob("*.pth"))
+                        if not pt_files:
+                            raise ValueError(f"No *.pt or *.pth files found in archive: {model_path}")
+                        for fp in pt_files:
+                            print(f"Loading model from archive: {fp.name}...")
+                            model = DeepProperty(str(fp))
+                            models.append(model)
+                        print(f"Loaded {len(models)} model(s) from archive {path_obj.name}")
+                        return models
+            if tarfile.is_tarfile(path_obj):
+                with tarfile.open(path_obj, 'r:*') as tar_ref:
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        tar_ref.extractall(tmp_dir)
+                        root = Path(tmp_dir)
+                        pt_files = sorted(root.rglob("*.pt")) + sorted(root.rglob("*.pth"))
+                        if not pt_files:
+                            raise ValueError(f"No *.pt or *.pth files found in archive: {model_path}")
+                        for fp in pt_files:
+                            print(f"Loading model from archive: {fp.name}...")
+                            model = DeepProperty(str(fp))
+                            models.append(model)
+                        print(f"Loaded {len(models)} model(s) from archive {path_obj.name}")
+                        return models
+            if path_obj.suffix in ['.pt', '.pth']:
+                # 单文件 .pt/.pth，直接送 DeepProperty
+                try:
+                    print(f"Loading model from {path_obj}...")
+                    model = DeepProperty(str(path_obj))
+                    models.append(model)
+                    print(f"Successfully loaded model from {path_obj}")
+                except Exception as e:
+                    traceback.print_exc()
+                    raise RuntimeError(f"Failed to load model from {path_obj}: {e}")
+                print(f"Loaded {len(models)} models")
+                return models
+            raise ValueError(f"Unsupported model file (not .pt/.pth and not a zip/tar archive): {model_path}")
+        if path_obj.is_dir():
             # Handle directory - recursively search for .pt and .pth files
             model_files = list(path_obj.rglob("*.pt")) + list(path_obj.rglob("*.pth"))
             
