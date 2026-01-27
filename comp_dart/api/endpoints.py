@@ -89,7 +89,7 @@ def run_optimization(
         mutation_rate=algorithm.mutation_rate,
         selection_mode=algorithm.selection_mode,
         init_mode=algorithm.init_mode,
-        init_population=algorithm.init_population
+        init_population=algorithm.init_population,
     )
 
     # Normalization: same config for mean (target_2j) and std (target_2j+1) of each target

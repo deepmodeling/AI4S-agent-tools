@@ -12,7 +12,7 @@ class GeneticAlgorithm:
     Modular genetic algorithm for composition optimization.
     """
     
-    def __init__(self, 
+    def __init__(self,
                  targets: List[Target],
                  constraints: List[Constraint],
                  structure_generator: StructureGenerator,
@@ -22,10 +22,12 @@ class GeneticAlgorithm:
                  generations: int = 100,
                  crossover_rate: float = 0.8,
                  mutation_rate: float = 0.1,
-                 selection_mode: str = "roulette"):
+                 selection_mode: str = "roulette",
+                 init_mode: str = "random",
+                 init_population: Optional[List[List[float]]] = None):
         """
         Initialize genetic algorithm.
-        
+
         Args:
             targets: List of Target objects to optimize
             constraints: List of Constraint objects to apply
@@ -37,6 +39,10 @@ class GeneticAlgorithm:
             crossover_rate: Probability of crossover operation
             mutation_rate: Probability of mutation operation
             selection_mode: Selection method ("roulette" or "tournament")
+            init_mode: Population init mode; "random" = random compositions.
+            init_population: Optional initial compositions (list of lists, each sums to 1).
+                            Used when init_mode is not "random". If provided, these are
+                            used first; remaining slots are filled with random individuals.
         """
         self.targets = targets
         self.constraints = constraints
@@ -48,30 +54,45 @@ class GeneticAlgorithm:
         self.crossover_rate = crossover_rate
         self.mutation_rate = mutation_rate
         self.selection_mode = selection_mode
-        
+        self.init_mode = init_mode
+        self.init_population = init_population
+
         # Initialize logger
         self.logger = logging.getLogger(__name__)
-        
+
         # Initialize population
         self.population = self.initialize_population()
 
     def initialize_population(self) -> List[np.ndarray]:
         """
-        Initialize the population with random compositions.
-        
-        Returns:
-            List of composition arrays
+        Initialize the population. Uses init_population when provided and init_mode
+        is not "random"; otherwise uses random compositions.
         """
-        self.logger.info("Initializing population.")
-        population = [self.random_composition() for _ in range(self.population_size)]
-        
-        # Apply constraints to each individual in the population
-        if self.constraints:
-            population = [apply_constraints(ind, self.elements, self.constraints) for ind in population]
-            
+        self.logger.info("Initializing population (init_mode=%s).", self.init_mode)
+        population: List[np.ndarray] = []
+
+        if self.init_population and len(self.init_population) > 0:
+            n_el = len(self.elements)
+            for comp in self.init_population[: self.population_size]:
+                arr = np.array(comp, dtype=float)
+                if len(arr) != n_el:
+                    # Pad with zeros or truncate to match elements
+                    if len(arr) < n_el:
+                        arr = np.pad(arr, (0, n_el - len(arr)), constant_values=0.0)
+                    else:
+                        arr = arr[:n_el].copy()
+                    s = np.sum(arr)
+                    if s > 0:
+                        arr /= s
+                if self.constraints:
+                    arr = apply_constraints(arr, self.elements, self.constraints)
+                population.append(arr)
+
+        while len(population) < self.population_size:
+            population.append(self.random_composition())
+
         if not population:
             raise ValueError("Population initialization failed: population is empty.")
-            
         return population
 
     def random_composition(self) -> np.ndarray:
