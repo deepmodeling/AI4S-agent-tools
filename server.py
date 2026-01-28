@@ -96,4 +96,4 @@ def run_dart_ga(
 
 if __name__ == "__main__":
     logging.info("Starting DART Server...")
-    mcp.run(transport="sse")
+    mcp.run(transport="streamable-http")
