@@ -75,7 +75,7 @@ RUN uv pip install --system \
     "matplotlib" \
     "typing-extensions" \
     "pyyaml" \
-    "bohr-agent-sdk>=0.1.101" \
+    "bohr-agent-sdk==0.1.123" \
     "jsonpickle>=4.1.1"
 
 # Git 依赖通常包含子依赖，建议也去掉 --no-deps (除非你非常确定它们不缺包)
