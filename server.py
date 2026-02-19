@@ -1,9 +1,11 @@
 """
 MCP server interface for Composition DART optimization.
 
-Tool run_dart_ga uses explicit parameters; targets, structure_config, constraints
-are Pydantic types. File-related fields (output, targets[].model_path) use Path
-so the SDK can resolve OSS links.
+Exposes a single tool run_dart_ga for running a genetic algorithm over composition
+space. All tool parameters use explicit types; targets, structure_config, and
+constraints are Pydantic models. File-related fields (output, targets[].model_path,
+structure_config.template_path) accept Path or str so the SDK can resolve OSS
+links to local paths.
 """
 
 from __future__ import annotations
@@ -56,17 +58,44 @@ def run_dart_ga(
     """
     Run genetic algorithm for composition optimization.
 
+    Optimizes chemical compositions over a given set of elements and target
+    properties (surrogate models or linear mixture). Uses structure config for
+    template/supercell and optional composition constraints. Returns a result
+    dict with optimization outcomes and metadata.
+
     Args:
-        elements: Element symbols (e.g. ['Fe','Ni','Co','V']).
-        population_size: GA population size.
-        generations: GA generations.
-        crossover_rate: Crossover rate.
-        mutation_rate: Mutation rate.
-        selection_mode: 'roulette' or 'tournament'.
-        output: Output file path (Path for SDK/OSS).
-        targets: List of target configs (name, type, model_path/data_source, weight_mean, weight_std, normalization).
-        structure_config: mode, template_path, supercell.
-        constraints: Optional list of {target, condition}.
+        elements (List[str]): Element symbols defining the composition space. At
+            least two required (e.g. ['Fe', 'Ni', 'Co', 'V']). Order determines
+            composition order in outputs.
+        targets (List[TargetConfigInArgs]): List of target configurations. Each
+            item: name (str), type (Literal['surrogate','linear_mixture']), and
+            either model_path (Path | str for surrogate) or data_source
+            (Literal['density','atomic_mass','custom'] for linear_mixture).
+            Optional: weight_mean (float), weight_std (float), normalization
+            (NormalizationInArgs). Path/str for model_path allows SDK to resolve
+            OSS links.
+        structure_config (StructureConfigInArgs): Structure generation config.
+            mode: Literal['template','auto']; template_path: Path | str |
+            Literal['fcc','bcc','hcp']; supercell: Optional[List[int]], default
+            [5,5,5]. Path/str for template_path allows SDK to resolve OSS links.
+        population_size (int): Number of individuals per generation (default
+            10, >=2).
+        generations (int): Number of GA generations (default 10, >=1).
+        crossover_rate (float): Crossover probability in [0,1] (default 0.8).
+        mutation_rate (float): Mutation probability in [0,1] (default 0.1).
+        selection_mode (Literal['roulette','tournament']): Parent selection mode
+            (default 'roulette').
+        output (Path | str): Output file path for run log (default 'ga_run.log').
+            Path/str allows SDK to resolve OSS and create the file.
+        constraints (Optional[List[ConstraintConfig]]): Optional list of
+            composition constraints. Each item: target (str | List[str] — single
+            element or list for sum constraint), condition (str, e.g. '<0.5',
+            '>=0.1', '=0.3'; operators: >=, <=, >, <, =).
+
+    Returns:
+        dict: Optimization result with keys including run metadata, best
+        composition(s), fitness values, and any algorithm-specific outputs
+        from run_optimization.
     """
     output_path = Path(output) if isinstance(output, str) else output
     args_model = RunDartGAArgs(
