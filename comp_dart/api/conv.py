@@ -83,6 +83,7 @@ def run_dart_ga_args_to_legacy(
         crossover_rate=args.crossover_rate,
         mutation_rate=args.mutation_rate,
         selection_mode=args.selection_mode,
+        init_population=args.init_population,
     )
     structure = StructureConfig(
         mode=args.structure_config.mode,

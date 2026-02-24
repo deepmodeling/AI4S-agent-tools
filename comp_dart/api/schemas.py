@@ -436,6 +436,16 @@ class RunDartGAArgs(BaseModel):
         ...,
         description="Structure generation: mode, template_path, supercell."
     )
+    init_population: Optional[List[List[float]]] = Field(
+        default=None,
+        description="Optional initial guess compositions to seed the GA population. "
+                    "Each inner list is one composition whose values correspond to "
+                    "'elements' in order and should sum to 1.0 (e.g. [[0.25, 0.25, 0.25, 0.25]]). "
+                    "If fewer compositions are provided than population_size, the remaining "
+                    "slots are filled with random individuals. "
+                    "Use this when the user supplies a starting composition or you already "
+                    "know a promising region of the search space."
+    )
     constraints: Optional[List[ConstraintConfig]] = Field(
         default=None,
         description="Optional constraints: list of {target, condition}. Keys fixed."

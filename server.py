@@ -52,6 +52,7 @@ def run_dart_ga(
     mutation_rate: float = 0.1,
     selection_mode: Literal["roulette", "tournament"] = "roulette",
     output: str = "ga_run.log",
+    init_population: Optional[List[List[float]]] = None,
     constraints: Optional[List[ConstraintConfig]] = None,
 ) -> dict:
     """
@@ -95,6 +96,14 @@ def run_dart_ga(
             (default 'roulette').
         output (str): Output log file path string (default 'ga_run.log').
             This value is converted to pathlib.Path in the args conversion layer.
+        init_population (Optional[List[List[float]]]): Optional initial guess
+            compositions to seed the GA population. Each inner list is one
+            composition whose values correspond to 'elements' in order and
+            should sum to 1.0. Example for 4 elements:
+            [[0.25, 0.25, 0.25, 0.25]]. If fewer compositions are provided
+            than population_size, remaining slots are filled randomly. Use
+            this when the user supplies a starting composition or you already
+            know a promising region of the search space.
         constraints (Optional[List[ConstraintConfig]]): Optional list of
             composition constraints. Each item has two fields:
             - target (str | List[str]): Element(s) to constrain. A single
@@ -123,6 +132,7 @@ def run_dart_ga(
         output=output,
         targets=targets,
         structure_config=structure_config,
+        init_population=init_population,
         constraints=constraints,
     )
     problem, algorithm, structure, model_files, template_path, output_path = (

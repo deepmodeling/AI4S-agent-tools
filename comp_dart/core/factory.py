@@ -13,10 +13,13 @@ Design Philosophy: Method-First Reusability
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Dict, List, Union
+
+logger = logging.getLogger(__name__)
 
 from comp_dart.api.schemas import (
     ConstraintConfig,
@@ -131,15 +134,22 @@ def build_structure_generator(config: StructureConfig, template_file: Optional[P
     - Preset templates: fcc, bcc, hcp (when template_file is Path('fcc'), etc.)
     - Custom templates via direct file paths
     """
-    if config.mode == "auto":
-        raise NotImplementedError("Auto mode not implemented")
-    
     resolved_template = None
     if template_file is not None:
         if isinstance(template_file, str) and template_file.lower() in ("fcc", "bcc", "hcp"):
             resolved_template = template_file.lower()
         else:
             resolved_template = Path(template_file) if isinstance(template_file, str) else template_file
+
+    if config.mode == "auto":
+        if resolved_template is not None:
+            logger.warning(
+                "structure_config.mode='auto' is not implemented; "
+                "falling back to template mode with template_file=%r.",
+                resolved_template,
+            )
+        else:
+            raise NotImplementedError("Auto mode not implemented")
             
     return TemplateLatticeFiller(
         template_path=resolved_template,
