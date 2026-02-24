@@ -144,7 +144,11 @@ def run_optimization(
         pred[f"pred_{tc.name}_mean"] = float(mean_val)
         pred[f"pred_{tc.name}_std"] = float(std_val)
 
+    best_composition = {
+        elem: float(frac) for elem, frac in zip(elements, composition)
+    }
     out = {
+        "best_composition": best_composition,
         "best_individual": [float(x) for x in composition],
         **pred,
         "best_score": result["best_score"],
