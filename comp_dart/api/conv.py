@@ -62,7 +62,7 @@ def run_dart_ga_args_to_legacy(
         structure: StructureConfig from structure_config (mode, supercell); template_path returned separately.
         model_files: { "property_i": Path } for surrogate targets only.
         template_path: args.structure_config.template_path (Path or "fcc"/"bcc"/"hcp").
-        output_path: args.output (Path).
+        output_path: Path(args.output).
     """
     targets_dict = {
         f"property_{i}": _target_in_to_legacy(t) for i, t in enumerate(args.targets)
@@ -89,4 +89,4 @@ def run_dart_ga_args_to_legacy(
         supercell=args.structure_config.supercell,
     )
     template_path: Union[Path, str] = args.structure_config.template_path
-    return problem, algorithm, structure, model_files, template_path, args.output
+    return problem, algorithm, structure, model_files, template_path, Path(args.output)

@@ -385,7 +385,8 @@ class RunDartGAArgs(BaseModel):
     """
     Single args object for MCP tool run_dart_ga.
     Tool is invoked with args = RunDartGAArgs; all keys are fixed, LLM fills values.
-    File-related fields (output, model_path in targets) use Path for SDK/OSS handling.
+    model_path in targets uses Path for SDK/OSS handling. output is a plain string
+    path and is converted to Path in the conversion layer.
     """
     elements: List[str] = Field(
         ...,
@@ -400,15 +401,10 @@ class RunDartGAArgs(BaseModel):
         default="roulette",
         description="Selection mode: 'roulette' or 'tournament'."
     )
-    output: Path = Field(
+    output: str = Field(
         ...,
-        description="Output file path. Must be Path so SDK can resolve OSS and create correct path."
+        description="Output log file path string."
     )
-
-    @field_validator("output", mode="before")
-    @classmethod
-    def coerce_output_to_path(cls, v: object) -> Path:
-        return Path(v) if isinstance(v, str) else v
 
     targets: List[TargetConfigInArgs] = Field(
         ...,

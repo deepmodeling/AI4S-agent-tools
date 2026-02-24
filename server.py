@@ -3,8 +3,8 @@ MCP server interface for Composition DART optimization.
 
 Exposes a single tool run_dart_ga for running a genetic algorithm over composition
 space. All tool parameters use explicit types; targets, structure_config, and
-constraints are Pydantic models. File-related fields (output, targets[].model_path,
-structure_config.template_path) accept Path or str so the SDK can resolve OSS
+constraints are Pydantic models. The output path is str; targets[].model_path and
+structure_config.template_path accept Path or str so the SDK can resolve OSS
 links to local paths.
 """
 
@@ -13,8 +13,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from pathlib import Path
-from typing import List, Literal, Optional, Union
+from typing import List, Literal, Optional
 
 sys.path.append("/mcp_server/comp-dart-gitlab")
 
@@ -52,7 +51,7 @@ def run_dart_ga(
     crossover_rate: float = 0.8,
     mutation_rate: float = 0.1,
     selection_mode: Literal["roulette", "tournament"] = "roulette",
-    output: Union[Path, str] = Path("ga_run.log"),
+    output: str = "ga_run.log",
     constraints: Optional[List[ConstraintConfig]] = None,
 ) -> dict:
     """
@@ -85,8 +84,8 @@ def run_dart_ga(
         mutation_rate (float): Mutation probability in [0,1] (default 0.1).
         selection_mode (Literal['roulette','tournament']): Parent selection mode
             (default 'roulette').
-        output (Path | str): Output file path for run log (default 'ga_run.log').
-            Path/str allows SDK to resolve OSS and create the file.
+        output (str): Output log file path string (default 'ga_run.log').
+            This value is converted to pathlib.Path in the args conversion layer.
         constraints (Optional[List[ConstraintConfig]]): Optional list of
             composition constraints. Each item: target (str | List[str] — single
             element or list for sum constraint), condition (str, e.g. '<0.5',
@@ -97,7 +96,6 @@ def run_dart_ga(
         composition(s), fitness values, and any algorithm-specific outputs
         from run_optimization.
     """
-    output_path = Path(output) if isinstance(output, str) else output
     args_model = RunDartGAArgs(
         elements=elements,
         population_size=population_size,
@@ -105,7 +103,7 @@ def run_dart_ga(
         crossover_rate=crossover_rate,
         mutation_rate=mutation_rate,
         selection_mode=selection_mode,
-        output=output_path,
+        output=output,
         targets=targets,
         structure_config=structure_config,
         constraints=constraints,
