@@ -70,9 +70,18 @@ def run_dart_ga(
             item: name (str), type (Literal['surrogate','linear_mixture']), and
             either model_path (Path | str for surrogate) or data_source
             (Literal['density','atomic_mass','custom'] for linear_mixture).
-            Optional: weight_mean (float), weight_std (float), normalization
-            (NormalizationInArgs). Path/str for model_path allows SDK to resolve
-            OSS links.
+            Optional fields:
+            - weight_mean (float, default 1.0): Weight for the predicted mean
+              in the fitness function. The GA MAXIMIZES fitness = sum(weight *
+              value). Therefore: positive weight_mean → MAXIMIZE the property;
+              negative weight_mean → MINIMIZE the property. For example, to
+              minimize density, set weight_mean=-1.0.
+            - weight_std (float, default 0.0): Weight for prediction
+              uncertainty. Negative → penalize uncertainty (prefer confident
+              predictions); 0.0 → ignore uncertainty.
+            - normalization (NormalizationInArgs): Optional z-score
+              normalization config.
+            Path/str for model_path allows SDK to resolve OSS links.
         structure_config (StructureConfigInArgs): Structure generation config.
             mode: Literal['template','auto']; template_path: Path | str |
             Literal['fcc','bcc','hcp']; supercell: Optional[List[int]], default

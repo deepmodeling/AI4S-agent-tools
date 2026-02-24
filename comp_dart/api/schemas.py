@@ -357,8 +357,21 @@ class TargetConfigInArgs(BaseModel):
         default=None,
         description="Preset data for linear_mixture. Required when type='linear_mixture'. E.g. 'density'."
     )
-    weight_mean: float = Field(default=1.0, description="Weight for mean in fitness; may be negative to minimize.")
-    weight_std: float = Field(default=0.0, description="Weight for std in fitness; may be negative.")
+    weight_mean: float = Field(
+        default=1.0,
+        description="Weight for the predicted mean in the fitness function. "
+                    "The GA maximizes fitness = sum(weight * value). "
+                    "Positive weight → maximize this property; "
+                    "negative weight → minimize this property. "
+                    "Example: to minimize density, set weight_mean=-1.0."
+    )
+    weight_std: float = Field(
+        default=0.0,
+        description="Weight for the prediction uncertainty (std) in the fitness function. "
+                    "Positive → favor higher uncertainty; negative → penalize uncertainty (prefer confident predictions). "
+                    "Typically set to a small negative value (e.g. -0.1) to prefer low-uncertainty compositions, "
+                    "or 0.0 to ignore uncertainty."
+    )
     normalization: Optional[NormalizationInArgs] = Field(
         default=None,
         description="Optional normalization (method + params). Keys fixed."
