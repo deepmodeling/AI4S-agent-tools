@@ -87,9 +87,17 @@ def run_dart_ga(
         output (str): Output log file path string (default 'ga_run.log').
             This value is converted to pathlib.Path in the args conversion layer.
         constraints (Optional[List[ConstraintConfig]]): Optional list of
-            composition constraints. Each item: target (str | List[str] — single
-            element or list for sum constraint), condition (str, e.g. '<0.5',
-            '>=0.1', '=0.3'; operators: >=, <=, >, <, =).
+            composition constraints. Each item has two fields:
+            - target (str | List[str]): Element(s) to constrain. A single
+              element symbol (e.g. 'Fe') constrains that element's mole
+              fraction; a list (e.g. ['Fe','Ni']) constrains the sum of those
+              elements' mole fractions.
+            - condition (str): Expression in format 'operator value', e.g.
+              '<0.5', '>=0.1', '=0.3'. Supported operators: >=, <=, >, <, =.
+              The value represents a mole fraction and MUST be in [0, 1].
+              Values > 1 (e.g. 30 meaning 30 %) are NOT auto-normalized;
+              pass 0.3 instead of 30. Out-of-range values will silently
+              produce meaningless constraints.
 
     Returns:
         dict: Optimization result with keys including run metadata, best

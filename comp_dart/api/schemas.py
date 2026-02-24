@@ -186,7 +186,8 @@ class ConstraintConfig(BaseModel):
         ...,
         description="Constraint expression in format 'operator value' (e.g., '<0.5', '>=0.1', '=0.3'). "
                    "Supported operators: >=, <=, >, <, =. "
-                   "The value must be a number (integer or float). "
+                   "The value represents a mole fraction and must be in [0, 1]. "
+                   "Values are NOT auto-normalized: pass 0.3 instead of 30 for 30 %. "
                    "Examples: '<0.5' means the target must be less than 0.5, "
                    "'>=0.1' means the target must be greater than or equal to 0.1."
     )
@@ -194,11 +195,18 @@ class ConstraintConfig(BaseModel):
     @field_validator('condition')
     @classmethod
     def validate_condition_syntax(cls, v: str) -> str:
-        """Validate that condition follows the required format."""
+        """Validate format and value range of a constraint condition."""
         pattern = r'^(>=|<=|>|<|=)\s*(-?\d+(?:\.\d+)?)$'
-        if not re.match(pattern, v):
+        m = re.match(pattern, v)
+        if not m:
             raise ValueError(
                 f'Condition must be in format "operator value", e.g. "<0.5", ">=0.1". Got: {v}'
+            )
+        val = float(m.group(2))
+        if val < 0 or val > 1:
+            raise ValueError(
+                f'Condition value must be a mole fraction in [0, 1] '
+                f'(e.g. 0.3 for 30 %, not 30). Got: {val}'
             )
         return v
 
