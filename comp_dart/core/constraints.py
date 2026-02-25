@@ -38,24 +38,19 @@ class ElementBoundConstraint(Constraint):
         composition = np.array(composition).copy()
         try:
             i = elements.index(self.element)
-            if self.operator == '<' and composition[i] > self.value:
-                # Move value toward upper limit with some softness
-                # Instead of hard clip, use a sigmoid-like adjustment
+            if self.operator in ('<', '<=') and composition[i] > self.value:
                 excess = composition[i] - self.value
-                adjustment_factor = 1.0 / (1.0 + excess * CLIPPING_FACTOR)  # Soft transition
+                adjustment_factor = 1.0 / (1.0 + excess * CLIPPING_FACTOR)
                 composition[i] = self.value + excess * adjustment_factor
-            elif self.operator == '>' and composition[i] < self.value:
-                # Move value toward lower limit with some softness
+            elif self.operator in ('>', '>=') and composition[i] < self.value:
                 deficit = self.value - composition[i]
-                adjustment_factor = 1.0 / (1.0 + deficit * CLIPPING_FACTOR)  # Soft transition
+                adjustment_factor = 1.0 / (1.0 + deficit * CLIPPING_FACTOR)
                 composition[i] = self.value - deficit * adjustment_factor
             elif self.operator == '=' and composition[i] != self.value:
-                # Move value toward target with some softness
                 deviation = composition[i] - self.value
-                adjustment_factor = 1.0 / (1.0 + abs(deviation) * CLIPPING_FACTOR)  # Soft transition
+                adjustment_factor = 1.0 / (1.0 + abs(deviation) * CLIPPING_FACTOR)
                 composition[i] = self.value + deviation * adjustment_factor
         except ValueError:
-            # Element not found in elements list, skip this constraint
             pass
             
         return composition
@@ -100,21 +95,18 @@ class SumConstraint(Constraint):
                 # Element not found in elements list, skip this constraint
                 continue
         
-        if indices:  # Only apply if we found matching elements
+        if indices:
             current_sum = np.sum(composition[indices])
             
-            if self.operator == '<' and current_sum > self.value:
-                # Scale down the elements proportionally
+            if self.operator in ('<', '<=') and current_sum > self.value:
                 scale = self.value / current_sum
                 for i in indices:
                     composition[i] *= scale
-            elif self.operator == '>' and current_sum < self.value:
-                # Scale up the elements proportionally
+            elif self.operator in ('>', '>=') and current_sum < self.value:
                 scale = self.value / current_sum
                 for i in indices:
                     composition[i] *= scale
             elif self.operator == '=' and current_sum != 0:
-                # Scale the elements to match the target sum
                 scale = self.value / current_sum
                 for i in indices:
                     composition[i] *= scale
