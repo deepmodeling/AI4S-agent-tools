@@ -56,6 +56,8 @@ RUN uv pip install --system -v --no-build-isolation --no-deps .
 WORKDIR /mcp_server/comp-dart-gitlab
 RUN rm -rf /tmp/deepmd_build
 
+ENV DP_ENABLE_TENSORFLOW=0
+
 # [关键修改]
 # 1. 去掉 --no-deps: 让 uv 自动安装 pymatgen 依赖的 orjson, monty, pandas 等
 # 2. 显式锁定 numpy==1.26.4: 确保 uv 解析依赖时，不会为了迎合其他包而升级 numpy
