@@ -208,22 +208,17 @@ class SurrogateModelTarget(Target):
         if self.models is None or len(self.models) == 0:
             raise ValueError("No models provided for surrogate model target.")
             
-        print(f"Predicting with {len(self.models)} models and {len(structure) if isinstance(structure, (list, tuple)) else 1} structures")
-        
         # Predict using all models - following the pattern from original server.py
         predictions = []
         for i, model in enumerate(self.models):
-            print(f"Processing with model {i+1}/{len(self.models)}")
             # Handle both single structure and list of structures
             structures_to_process = structure if isinstance(structure, (list, tuple)) else [structure]
             for j, s in enumerate(structures_to_process):
                 try:
-                    print(f"  Predicting structure {j+1}/{len(structures_to_process)}")
                     pred_value = pred(model, s)
                     predictions.append(pred_value)
-                    print(f"  Prediction completed: {pred_value}")
                 except Exception as e:
-                    print(f"Error: Could not make prediction with model: {e}")
+                    print(f"Error: Could not make prediction with model {i+1}: {e}")
                     # Print full traceback
                     traceback.print_exc()
                     # Raise exception instead of adding default value
@@ -246,8 +241,6 @@ class SurrogateModelTarget(Target):
         normalized_mean = np.mean(normalized_predictions)
         normalized_std = np.std(normalized_predictions)
         
-        print(f"Prediction completed. Original Mean: {pred_mean}, Original Std: {pred_std}")
-        print(f"Normalized Mean: {normalized_mean}, Normalized Std: {normalized_std}")
             
         # Create metadata with normalization info
         metadata = {

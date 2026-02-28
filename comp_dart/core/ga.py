@@ -123,7 +123,8 @@ class GeneticAlgorithm:
         """
         results = []
         for i, individual in enumerate(population):
-            print(f"  Evaluating individual {i+1}/{len(population)}: {[f'{x:.4f}' for x in individual]}")
+            comp_str = "  ".join(f"{el}={x:.4f}" for el, x in zip(self.elements, individual))
+            print(f"  Evaluating individual {i+1}/{len(population)}: {comp_str}")
             
             # Apply constraints if they exist
             if self.constraints:
@@ -213,12 +214,9 @@ class GeneticAlgorithm:
                         metadata=result.metadata
                     )
                 
-                # Print both mean and std components
-                print(f"    {target.__class__.__name__} target_{target_idx} (mean): {result.get_original_value():.6f}")
-                if result.uncertainty is not None:
-                    print(f"    {target.__class__.__name__} target_{target_idx+1} (std): {result.get_original_uncertainty():.6f}")
-                else:
-                    print(f"    {target.__class__.__name__} target_{target_idx+1} (std): 0.000000")
+                # Print mean and std for this target on one line
+                orig_std = result.get_original_uncertainty() if result.uncertainty is not None else 0.0
+                print(f"    {target.__class__.__name__}: mean={result.get_original_value():.4f}  std={orig_std:.4f}")
             
             results.append(individual_results)
             
@@ -263,7 +261,6 @@ class GeneticAlgorithm:
                 # Check if we have normalization parameters for this target's mean component
                 mean_target_idx = 2 * i
                 if hasattr(self, 'target_normalization') and f"target_{mean_target_idx}" in self.target_normalization:
-                    print(self.target_normalization)
                     norm_params = self.target_normalization[f"target_{mean_target_idx}"]
                     result = target.predict(
                         constrained_comp, 
@@ -315,7 +312,6 @@ class GeneticAlgorithm:
                     metadata=result.metadata
                 )
         
-        print(f"  Target results for fitness evaluation: {target_results}")
         # Aggregate results into fitness score
         fitness = self.aggregator.aggregate(target_results)
         print(f"  Fitness score: {fitness:.6f}")
@@ -363,16 +359,10 @@ class GeneticAlgorithm:
         else:
             probabilities = [score / total_fitness for score in shifted_fitness]
             
-        print(f"  Roulette selection probabilities: {[f'{p:.4f}' for p in probabilities]}")
-        
         # Select parents
         indices = np.arange(len(self.population))
         selected_indices = np.random.choice(indices, size=len(self.population), p=probabilities)
         parents = [self.population[i] for i in selected_indices]
-        
-        print(f"  Selected parents indices: {selected_indices}")
-        for i, parent in enumerate(parents):
-            print(f"    Parent {i+1}: {[f'{x:.4f}' for x in parent]}")
             
         return parents
 
@@ -388,7 +378,6 @@ class GeneticAlgorithm:
         """
         self.logger.info("Using tournament selection.")
         selected_population = []
-        print(f"  Tournament selection (tournament size: {tournament_size}):")
         
         for i in range(self.population_size):
             # Randomly select individuals for tournament
@@ -396,16 +385,10 @@ class GeneticAlgorithm:
             tournament = [self.population[idx] for idx in indices]
             tournament_fitness = [self.evaluate_fitness(ind) for ind in tournament]
             
-            print(f"    Tournament {i+1}:")
-            for j, (individual, fitness) in enumerate(zip(tournament, tournament_fitness)):
-                print(f"      Individual {j+1} (index {indices[j]}): {[f'{x:.4f}' for x in individual]} - Fitness: {fitness:.6f}")
-            
             # Select best individual from tournament
             best_idx = np.argmax(tournament_fitness)
             best_individual = tournament[best_idx]
             selected_population.append(best_individual)
-            
-            print(f"      Selected: {[f'{x:.4f}' for x in best_individual]} (index {indices[best_idx]})")
             
         return selected_population
 
@@ -422,23 +405,14 @@ class GeneticAlgorithm:
         """
         self.logger.info("Crossover.")
         if np.random.rand() < self.crossover_rate:
-            print(f"    Performing crossover:")
-            print(f"      Parent 1: {[f'{x:.4f}' for x in parent1]}")
-            print(f"      Parent 2: {[f'{x:.4f}' for x in parent2]}")
-            
             # Make sure we don't create crossover point at the edges
             if len(self.elements) <= 2:
                 point = 1
             else:
                 point = np.random.randint(1, len(self.elements) - 1)
                 
-            print(f"      Crossover point: {point}")
-                
             offspring1 = np.concatenate((parent1[:point], parent2[point:]))
             offspring2 = np.concatenate((parent2[:point], parent1[point:]))
-            
-            print(f"      Offspring 1 before normalization: {[f'{x:.4f}' for x in offspring1]}")
-            print(f"      Offspring 2 before normalization: {[f'{x:.4f}' for x in offspring2]}")
             
             # Normalize offspring
             sum1 = np.sum(offspring1)
@@ -448,23 +422,11 @@ class GeneticAlgorithm:
             if sum2 > 0:
                 offspring2 /= sum2
                 
-            print(f"      Offspring 1 after normalization: {[f'{x:.4f}' for x in offspring1]}")
-            print(f"      Offspring 2 after normalization: {[f'{x:.4f}' for x in offspring2]}")
-                
             if self.constraints:
-                # Apply constraints
-                print(f"      Applying constraints to offspring")
                 offspring1 = apply_constraints(offspring1, self.elements, self.constraints)
                 offspring2 = apply_constraints(offspring2, self.elements, self.constraints)
-                print(f"      Offspring 1 after constraints: {[f'{x:.4f}' for x in offspring1]}")
-                print(f"      Offspring 2 after constraints: {[f'{x:.4f}' for x in offspring2]}")
                 
             return offspring1, offspring2
-        else:
-            print(f"    No crossover performed:")
-            print(f"      Parent 1: {[f'{x:.4f}' for x in parent1]}")
-            print(f"      Parent 2: {[f'{x:.4f}' for x in parent2]}")
-            print(f"      Returning parents as offspring")
             
         return parent1, parent2
 
@@ -484,14 +446,11 @@ class GeneticAlgorithm:
         original_individual = individual.copy()
         
         if np.random.rand() < self.mutation_rate:
-            print(f"    Performing mutation on individual: {[f'{x:.4f}' for x in original_individual]}")
             mutations_count = np.random.randint(1, len(self.elements) // 2 + 1)
-            print(f"    Number of mutations: {mutations_count}")
             
             for m in range(mutations_count):
                 point = np.random.randint(len(self.elements))
                 mutation_value = np.random.uniform(-stepsize, stepsize)
-                print(f"      Mutation {m+1}: Modifying element {point} by {mutation_value:.4f}")
                 
                 individual[point] += mutation_value  # Allow both increases and decreases
                 individual = np.clip(individual, a_min=0, a_max=1)
@@ -502,13 +461,7 @@ class GeneticAlgorithm:
                     individual /= individual_sum
                     
             if self.constraints:
-                # Apply constraints
-                print(f"    Applying constraints after mutation")
                 individual = apply_constraints(individual, self.elements, self.constraints)
-                
-            print(f"    Individual after mutation: {[f'{x:.4f}' for x in individual]}")
-        else:
-            print(f"    No mutation performed on individual: {[f'{x:.4f}' for x in original_individual]}")
             
         # Always ensure values are in valid range and normalized
         individual = np.clip(individual, a_min=0, a_max=1)
@@ -541,21 +494,13 @@ class GeneticAlgorithm:
             # Calculate fitness scores for the entire population
             fitness_scores = [self.evaluate_fitness(ind) for ind in self.population]
             
-            # Print detailed population information
-            print(f"\nPopulation details:")
-            for i, (individual, fitness) in enumerate(zip(self.population, fitness_scores)):
-                print(f"  Individual {i+1}: {[f'{x:.4f}' for x in individual]} - Fitness: {fitness:.6f}")
-                
             # Find best individual
             best_idx = np.argmax(fitness_scores)
             best_individual = self.population[best_idx].copy()
             best_score = fitness_scores[best_idx]
             
-            print(f"\nBest individual before constraints: {[f'{x:.4f}' for x in best_individual]} - Score: {best_score:.6f}")
-            
             if self.constraints:
                 best_individual = apply_constraints(best_individual, self.elements, self.constraints)
-                print(f"Best individual after constraints:  {[f'{x:.4f}' for x in best_individual]}")
                 
             # Evaluate targets for best individual for detailed output
             structures = None
@@ -632,9 +577,9 @@ class GeneticAlgorithm:
                     target_values.append((f"target_{target_idx+1}", std_result.value, std_result.uncertainty, std_result))
             
             # Print detailed generation information
+            best_comp_str = "  ".join(f"{el}={x:.4f}" for el, x in zip(self.elements, best_individual))
             print(f"\nGeneration {generation+1} Summary:")
-            print(f"Elements: {self.elements}")
-            print(f"Best Composition: {[f'{x:.4f}' for x in best_individual]}")
+            print(f"Best Composition: {best_comp_str}")
             for target_name, value, uncertainty, result_obj in target_values:
                 original_value = result_obj.get_original_value()
                 original_uncertainty = result_obj.get_original_uncertainty()
@@ -645,33 +590,16 @@ class GeneticAlgorithm:
             print(f"Fitness Score: {best_score:.6f}")
             print("-" * 60)
             
-            # Selection
-            print(f"Selection process using {self.selection_mode} selection...")
+            # Selection and reproduction
             parents = self.select_parents()
-            print(f"Selected {len(parents)} parents for reproduction")
             
             # Create new population through crossover and mutation
             new_population = []
-            print(f"\nReproduction process:")
             for i in range(0, len(parents) - 1, 2):
                 parent1, parent2 = parents[i], parents[i+1]
-                print(f"  Crossing over parents {i+1} and {i+2}")
-                
-                # Crossover
                 offspring1, offspring2 = self.crossover(parent1, parent2)
-                print(f"    Parent 1: {[f'{x:.4f}' for x in parent1]}")
-                print(f"    Parent 2: {[f'{x:.4f}' for x in parent2]}")
-                print(f"    Offspring 1: {[f'{x:.4f}' for x in offspring1]}")
-                print(f"    Offspring 2: {[f'{x:.4f}' for x in offspring2]}")
-                
-                # Mutation
-                print(f"  Mutating offspring...")
                 mutated_offspring1 = self.mutate(offspring1)
                 mutated_offspring2 = self.mutate(offspring2)
-                print(f"    Before mutation 1: {[f'{x:.4f}' for x in offspring1]}")
-                print(f"    After mutation 1:  {[f'{x:.4f}' for x in mutated_offspring1]}")
-                print(f"    Before mutation 2: {[f'{x:.4f}' for x in offspring2]}")
-                print(f"    After mutation 2:  {[f'{x:.4f}' for x in mutated_offspring2]}")
                 
                 new_population.append(mutated_offspring1)
                 new_population.append(mutated_offspring2)
@@ -717,8 +645,8 @@ class GeneticAlgorithm:
         print(f"\n{'='*60}")
         print(f"FINAL RESULT AFTER {self.generations} GENERATIONS")
         print(f"{'='*60}")
-        print(f"Elements: {self.elements}")
-        print(f"Best Composition: {[f'{x:.4f}' for x in best_individual]}")
+        best_comp_str = "  ".join(f"{el}={x:.4f}" for el, x in zip(self.elements, best_individual))
+        print(f"Best Composition: {best_comp_str}")
         for target_name, original_value, original_uncertainty, result_obj in target_values:
             # Get normalized values for display
             normalized_value = result_obj.value
