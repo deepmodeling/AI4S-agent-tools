@@ -22,22 +22,25 @@ from comp_dart.core.factory import (
 from comp_dart.core.fitness import WeightedAggregator
 from comp_dart.core.ga import GeneticAlgorithm
 from comp_dart.core.interfaces import Target, TargetResult
+from comp_dart.core.pareto import compute_pareto_flags
 
 
 def optimize_composition(ga: GeneticAlgorithm) -> Dict[str, Any]:
     """
-    Run GA evolution and return best individual and score.
+    Run GA evolution and return best individual, score, and all candidates.
 
     Args:
         ga: Configured GeneticAlgorithm instance.
 
     Returns:
-        Dict with "best_individual" (list) and "best_score" (float).
+        Dict with "best_individual" (list), "best_score" (float),
+        and "candidates" (list of candidate dicts from the final population).
     """
-    best_individual, best_score = ga.evolve()
+    best_individual, best_score, candidates = ga.evolve()
     return {
         "best_individual": best_individual.tolist(),
         "best_score": float(best_score),
+        "candidates": candidates,
     }
 
 
@@ -111,8 +114,9 @@ def run_optimization(
     result = optimize_composition(ga)
     composition = np.array(result["best_individual"])
     elements = problem.elements
+    raw_candidates = result.get("candidates", [])
 
-    # Generate structures if any target needs them
+    # Generate structures if any target needs them (for best individual reporting)
     structures = None
     for t in targets:
         if t.requires_structure:
@@ -144,14 +148,70 @@ def run_optimization(
         pred[f"pred_{tc.name}_mean"] = float(mean_val)
         pred[f"pred_{tc.name}_std"] = float(std_val)
 
+    # ---- Build serialisable candidates list with Pareto flags ----
+    candidates_out: List[Dict[str, Any]] = []
+    # Collect the objective matrix for Pareto computation.
+    # Each target j contributes one "mean" objective at target_results key "target_{2j}".
+    # The sign convention: the GA *maximises* weighted fitness, so the weight sign
+    # already encodes direction.  For Pareto we use weight_sign * mean_value so that
+    # "higher is better" in every column.
+    n_targets = len(sorted_items)
+    weight_signs: List[float] = []
+    target_names: List[str] = []
+    for j, (key_id, tc) in enumerate(sorted_items):
+        # Use the sign of mean_weight to determine direction for Pareto:
+        # positive weight → maximise → keep as-is
+        # negative weight → minimise → negate for Pareto (higher-is-better)
+        weight_signs.append(1.0 if tc.mean_weight >= 0 else -1.0)
+        target_names.append(tc.name)
+
+    obj_rows: List[List[float]] = []
+
+    for cand in raw_candidates:
+        comp_arr = cand["composition"]
+        tr = cand["target_results"]
+
+        # Build per-target predictions for this candidate
+        cand_pred: Dict[str, float] = {}
+        obj_row: List[float] = []
+        for j, (key_id, tc) in enumerate(sorted_items):
+            mean_key = f"target_{2 * j}"
+            std_key = f"target_{2 * j + 1}"
+            mean_val = float(tr[mean_key].get_original_value()) if mean_key in tr else 0.0
+            std_val = float(tr[std_key].get_original_value()) if std_key in tr else 0.0
+            cand_pred[f"pred_{tc.name}_mean"] = mean_val
+            cand_pred[f"pred_{tc.name}_std"] = std_val
+            obj_row.append(weight_signs[j] * mean_val)
+
+        obj_rows.append(obj_row)
+
+        cand_composition = {
+            elem: float(frac) for elem, frac in zip(elements, comp_arr)
+        }
+        candidates_out.append({
+            "composition": cand_composition,
+            "individual": [float(x) for x in comp_arr],
+            "fitness": cand["fitness"],
+            **cand_pred,
+        })
+
+    # Compute Pareto non-dominated flags
+    if obj_rows:
+        obj_matrix = np.array(obj_rows)
+        pareto_flags = compute_pareto_flags(obj_matrix)
+        for i, flag in enumerate(pareto_flags):
+            candidates_out[i]["is_pareto"] = flag
+    # ---- end candidates ----
+
     best_composition = {
         elem: float(frac) for elem, frac in zip(elements, composition)
     }
-    out = {
+    out: Dict[str, Any] = {
         "best_composition": best_composition,
         "best_individual": [float(x) for x in composition],
         **pred,
         "best_score": result["best_score"],
+        "candidates": candidates_out,
     }
 
     with open(output_file, "w") as f:

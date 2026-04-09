@@ -474,12 +474,16 @@ class GeneticAlgorithm:
             
         return individual
 
-    def evolve(self) -> Tuple[np.ndarray, float, Dict]:
+    def evolve(self) -> Tuple[np.ndarray, float, List[Dict[str, Any]]]:
         """
         Run the genetic algorithm evolution process.
         
         Returns:
-            Tuple of (best_individual, best_score, metadata)
+            Tuple of (best_individual, best_score, candidates) where candidates
+            is a list of dicts, one per individual in the final population, each
+            containing 'composition' (np.ndarray), 'fitness' (float), and
+            'target_results' (dict mapping target key to TargetResult with
+            original-scale values).
         """
         self.logger.info("Starting evolution with %d generations", self.generations)
         
@@ -611,51 +615,93 @@ class GeneticAlgorithm:
             self.logger.info("Generation %d - Best Score: %f - Best Individual: %s", 
                            generation+1, best_score, best_individual)
 
-        # Final evaluation of the best individual
+        # Final evaluation of ALL individuals in the population
+        print(f"\n{'='*60}")
+        print(f"FINAL EVALUATION OF ALL CANDIDATES (population size={len(self.population)})")
+        print(f"{'='*60}")
+
         fitness_scores = [self.evaluate_fitness(ind) for ind in self.population]
         best_idx = np.argmax(fitness_scores)
-        best_individual = self.population[best_idx]
+        best_individual = self.population[best_idx].copy()
         best_score = fitness_scores[best_idx]
-        
+
         if self.constraints:
             best_individual = apply_constraints(best_individual, self.elements, self.constraints)
-            
-        # Evaluate targets for best individual for final output
-        structures = None
-        for target in self.targets:
-            if target.requires_structure:
-                structures = self.structure_generator.generate_structures(best_individual, self.elements)
-                break
-                
-        target_values = []
-        for i, target in enumerate(self.targets):
-            if target is None:
-                # Skip None targets
-                continue
-                
-            structure = structures[0] if structures and target.requires_structure else None
-            # For targets that need element information, pass the elements parameter
-            if hasattr(target, 'element_properties') or hasattr(target, 'element_densities'):
-                result = target.predict(best_individual, structure, elements=self.elements)
-            else:
-                result = target.predict(best_individual, structure)
-            target_values.append((f"target_{i}", result.value, result.uncertainty, result))
-        
-        # Print final result
-        print(f"\n{'='*60}")
-        print(f"FINAL RESULT AFTER {self.generations} GENERATIONS")
+
+        # Build candidates list: evaluate every individual with original-scale targets
+        candidates: List[Dict[str, Any]] = []
+        for idx, ind in enumerate(self.population):
+            ind_constrained = ind.copy()
+            if self.constraints:
+                ind_constrained = apply_constraints(ind_constrained, self.elements, self.constraints)
+
+            # Generate structures once per individual if needed
+            structures = None
+            for target in self.targets:
+                if target and target.requires_structure:
+                    structures = self.structure_generator.generate_structures(ind_constrained, self.elements)
+                    break
+
+            target_results: Dict[str, TargetResult] = {}
+            for i, target in enumerate(self.targets):
+                if target is None:
+                    continue
+
+                structure = structures[0] if structures and target.requires_structure else None
+
+                # Determine normalization params
+                mean_target_idx = 2 * i
+                has_norm = hasattr(self, 'target_normalization') and f"target_{mean_target_idx}" in self.target_normalization
+                norm_params = self.target_normalization.get(f"target_{mean_target_idx}", {}) if has_norm else {}
+
+                result = target.predict(
+                    ind_constrained,
+                    structure,
+                    elements=self.elements,
+                    apply_normalization=norm_params.get("apply_normalization", False),
+                    raw_mean=norm_params.get("raw_mean"),
+                    raw_std=norm_params.get("raw_std"),
+                )
+
+                # Store original-scale mean
+                target_idx = 2 * i
+                target_results[f"target_{target_idx}"] = TargetResult(
+                    value=result.get_original_value(),
+                    uncertainty=result.get_original_uncertainty(),
+                    metadata=result.metadata,
+                )
+                # Store original-scale std
+                if result.uncertainty is not None:
+                    target_results[f"target_{target_idx+1}"] = TargetResult(
+                        value=result.get_original_uncertainty(),
+                        uncertainty=0.0,
+                        metadata=result.metadata,
+                    )
+                else:
+                    target_results[f"target_{target_idx+1}"] = TargetResult(
+                        value=0.0,
+                        uncertainty=0.0,
+                        metadata=result.metadata,
+                    )
+
+            candidates.append({
+                "composition": ind_constrained,
+                "fitness": float(fitness_scores[idx]),
+                "target_results": target_results,
+            })
+
+        # Print final best result
+        print(f"\nFINAL RESULT AFTER {self.generations} GENERATIONS")
         print(f"{'='*60}")
         best_comp_str = "  ".join(f"{el}={x:.4f}" for el, x in zip(self.elements, best_individual))
         print(f"Best Composition: {best_comp_str}")
-        for target_name, original_value, original_uncertainty, result_obj in target_values:
-            # Get normalized values for display
-            normalized_value = result_obj.value
-            normalized_uncertainty = result_obj.uncertainty
-            if original_uncertainty is not None:
-                print(f"{target_name}: {original_value:.6f} ± {original_uncertainty:.6f} (normalized: {normalized_value:.6f} ± {normalized_uncertainty:.6f})")
-            else:
-                print(f"{target_name}: {original_value:.6f} (normalized: {normalized_value:.6f})")
+        best_candidate = candidates[best_idx]
+        for key, tr in sorted(best_candidate["target_results"].items()):
+            orig_val = tr.get_original_value()
+            orig_unc = tr.get_original_uncertainty()
+            print(f"  {key}: {orig_val:.6f} ± {orig_unc:.6f}")
         print(f"Fitness Score: {best_score:.6f}")
-        print("="*60)
-        
-        return best_individual, best_score
+        print(f"Total candidates returned: {len(candidates)}")
+        print("=" * 60)
+
+        return best_individual, best_score, candidates
